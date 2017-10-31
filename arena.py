@@ -24,6 +24,7 @@ COLOR = {START: 'purple',
          'ant': 'green'}
 
 STRT_PNT_RD = 5
+GL_PNT_RD = 5
 
 # Module code
 
@@ -50,7 +51,15 @@ class Arena():
             self._size = size
             self._start_point = start_point
             self._goals = goals
+            for idx, goal in enumerate(self._goals):
+                if goal == (-1, -1):
+                    self._goals[idx] = size
             self._obstacles = obstacles
+
+        self._drawing = drawing_ready
+        if self._drawing:
+            self._figure = plt.figure()
+            self._axes = plt.gca()
 
         self.narena = self._gen_np_arena()
 
@@ -65,29 +74,53 @@ class Arena():
         for x in range(self._size[0]):
             for y in range(self._size[1]):
                 if (x, y) == self._start_point:
-                    narena[(0, x, y)] == START
+                    narena[(0, x, y)] = START
                 elif (x, y) in self._goals:
-                    narena[(0, x, y)] == GOAL
+                    narena[(0, x, y)] = GOAL
                 else:
                     is_obstacle = False
                     for cond in self._obstacles:
                         if eval(cond):
+                            print('pow!')
                             is_obstacle = True
                             break
-                    narena[(0, x, y)] == OBSTACLE if is_obstacle else EMPTY
+                    narena[(0, x, y)] = OBSTACLE if is_obstacle else EMPTY
         return narena
 
     def _figurize_arena(self, axes):
         '''
-        Draws a visual representation of the arena in a provided figure.
+        Draws a visual representation of the arena in the provided axes.
         '''
         axes.grid(False)
-        start_circle = plt.Circle((self._start_point),
+        circles = []
+
+        # Start circle
+        circles.append(plt.Circle((self._start_point),
                                   radius=STRT_PNT_RD,
-                                  fc=COLOR[START])
-        axes.add_patch(start_circle)
+                                  fc=COLOR[START]))
+        # Goal circles
+        for goal in self._goals:
+            circles.append(plt.Circle(goal,
+                                      radius=GL_PNT_RD,
+                                      fc=COLOR[GOAL]))
+        for circle in circles:
+            axes.add_patch(circle)
 
+        # Draw obstacles
+        print((self.narena[0,...] == OBSTACLE).any())
+        # axes.pcolormesh(np.flipud(np.rot90(self.narena[0,...])) == OBSTACLE)
+        axes.pcolormesh((self.narena[0,...]).T == OBSTACLE, cmap='binary')
 
+        # Make sure things look right
+        axes.set_xlim((0, self._size[0]))
+        axes.set_ylim((0, self._size[1]))
+        axes.grid(False)
+        # axes.invert_xaxis()
+        # axes.invert_yaxis()
+        axes.set_aspect(1)
+
+        # Draw the marker traces
+        # axes.pcolor(self.narena[1,...])
 
     def _parse_arena_file(self, filename):
         '''
@@ -99,11 +132,11 @@ class Arena():
 # Module-run code (used for testing)
 if __name__ == '__main__':
     print('Starting')
-    arena = Arena(obstacles=(['x > 40 and x < 20 and y > 70']))
+    arena = Arena(obstacles=(['x >= 15 and x < 20 and y >= 10 and y < 30']))
     plt.figure()
-    axes = plt.axes()
+    axes = plt.gca()
     arena._figurize_arena(axes)
-    axes.show()
+    plt.show()
 
     pass
 
