@@ -10,9 +10,32 @@ improvement.
 # Imports
 import numpy as np
 import arena
+from enum import Enum
 from matplotlib import pyplot as plt
 
-# Variables for indecies of gradient indication
+
+# Variables for decision indeces
+class Decision(Enum):
+    GO_N = 0
+    GO_S = 1
+    GO_E = 2
+    GO_w = 3
+    ATTACH = 4
+    DETACH = 5
+    MARKER_ON = 6
+    MARKER_OFF = 7
+
+
+# Variables for directions
+class Direction(Enum):
+    NW = 0
+    N = 1
+    NE = 2
+    W = 3
+    E = 4
+    SW = 5
+    S = 6
+    SE = 7
 
 
 class Ant():
@@ -53,7 +76,7 @@ class Ant():
         self._senses = {}
         self._state = None
         self._decision_cb = decision_cb
-        self._decision = None
+        self.decision = None
 
         self._rel_coord = [(-1, 1), (0, 1), (1, 1), (-1, 0),
                            (1, 0), (-1, -1), (0, -1), (1, -1)]
@@ -113,7 +136,7 @@ class Ant():
             x = self._positon[0] + self._rel_coord[i][0]
             y = self._positon[1] + self._rel_coord[i][1]
             marker_mag = self._narena[1, x, y] - marker_mag_here
-            if i in [0, 2, 5, 7]:
+            if i in [Direction.NW, Direction.NE, Direction.SW, Direction.SE]:
                 divider = np.sqrt(2)
             else:
                 divider = 1
@@ -140,7 +163,7 @@ class Ant():
         invoking an appropriate callback.
         '''
         self.sense()
-        self._decisions = self._decision_cb(self._senses, self._state)
+        self.decision = self._decision_cb(self._senses, self._state)
 
     def update_position(self, new_postion):
         '''
