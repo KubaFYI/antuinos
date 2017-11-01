@@ -11,7 +11,6 @@ improvement.
 import numpy as np
 import arena
 from enum import Enum
-from matplotlib import pyplot as plt
 
 
 # Variables for decision indeces
@@ -19,11 +18,16 @@ class Decision(Enum):
     GO_N = 0
     GO_S = 1
     GO_E = 2
-    GO_w = 3
+    GO_W = 3
     ATTACH = 4
     DETACH = 5
     MARKER_ON = 6
     MARKER_OFF = 7
+    DO_NOTHING = 8
+
+
+motions = [Decision.GO_N.value, Decision.GO_S.value,
+           Decision.GO_E.value, Decision.GO_W.value]
 
 
 # Variables for directions
@@ -36,6 +40,13 @@ class Direction(Enum):
     SW = 5
     S = 6
     SE = 7
+
+
+RELATIVE_COORDS = [(-1, 1), (0, 1), (1, 1), (-1, 0),
+                   (1, 0), (-1, -1), (0, -1), (1, -1)]
+
+# Catalogue of decision-making functions
+DECISION_FNCTN = {'random': 'decision_random'}
 
 
 class Ant():
@@ -69,25 +80,27 @@ class Ant():
                         surrounding agent's own cell communicating if it's
                         accesible or not
     '''
-    def __init__(self, arena, start_position=(0, 0), decision_cb=None):
+
+    def __init__(self, arena, start_position=(0, 0), decision_mode=None):
         self._narena = arena
-        self._position = start_position
+        self.position = start_position
 
         self._senses = {}
         self._state = None
-        self._decision_cb = decision_cb
+        if decision_mode is not None:
+            self._decision_cb = eval('self.' + DECISION_FNCTN[decision_mode])
+        else:
+            self._decision_cb = self.decision_do_nothing
         self.decision = None
-
-        self._rel_coord = [(-1, 1), (0, 1), (1, 1), (-1, 0),
-                           (1, 0), (-1, -1), (0, -1), (1, -1)]
 
     def where_am_i(self):
         '''
         Extract the type of the cell at current location
         '''
-        if self._narena[(0,) + self._position] < 0:
+        # import pdb; pdb.set_trace()
+        if self._narena[(0,) + tuple(self.position)] < 0:
             # Cell of interest
-            return self._narena[(0,) + self._position]
+            return self._narena[(0,) + tuple(self.position)]
         else:
             # Empty field
             return 0
@@ -110,8 +123,8 @@ class Ant():
         result = np.empty(8, dtype=bool)
         # Handle cases of being close to the arena edge -> Treat as obstacle
         for i in range(result.shape[0]):
-            x = self._positon[0] + self._rel_coord[i][0]
-            y = self._positon[1] + self._rel_coord[i][1]
+            x = self.position[0] + RELATIVE_COORDS[i][0]
+            y = self.position[1] + RELATIVE_COORDS[i][1]
 
             # Check if at the arena edge
             if x < 0 or y < 0 or \
@@ -129,23 +142,26 @@ class Ant():
         magnitude of the largest positive gradient and the second is a
         8-element list indicating the direction of the gradient.
         '''
-        marker_mag_here = self._narena[1, x, y]
+        result = np.empty(8, dtype=bool)
+        # import pdb; pdb.set_trace()
+        marker_mag_here = self._narena[1, self.position[0], self.position[1]]
         strongest_dir = None
         strongest_pos_grad = 0
         for i in range(result.shape[0]):
-            x = self._positon[0] + self._rel_coord[i][0]
-            y = self._positon[1] + self._rel_coord[i][1]
+            x = self.position[0] + RELATIVE_COORDS[i][0]
+            y = self.position[1] + RELATIVE_COORDS[i][1]
             marker_mag = self._narena[1, x, y] - marker_mag_here
             if i in [Direction.NW, Direction.NE, Direction.SW, Direction.SE]:
                 divider = np.sqrt(2)
             else:
                 divider = 1
-            if (marker_mag - marker_mag_here)/divider > strongest_pos_grad:
-                strongest_pos_grad = (marker_mag - marker_mag_here)/divider
+            if (marker_mag - marker_mag_here) / divider > strongest_pos_grad:
+                strongest_pos_grad = (marker_mag - marker_mag_here) / divider
                 strongest_dir = i
 
         result_dirs = [False] * 8
-        result_dirs[strongest_dir] = True
+        if strongest_dir is not None:
+            result_dirs[strongest_dir] = True
 
         return strongest_pos_grad, result_dirs
 
@@ -157,16 +173,28 @@ class Ant():
         self._senses['out_vis'] = self.what_do_i_see()
         self._senses['marker'] = self.what_do_i_smell()
 
-    def decide(selfs):
+    def decide(self):
         '''
         Chooses an action to perform from available sensory information by
         invoking an appropriate callback.
         '''
         self.sense()
-        self.decision = self._decision_cb(self._senses, self._state)
+        self.decision = self._decision_cb()
+
+    def decision_random(self):
+        '''
+        Do random action.
+        '''
+        return np.random.choice(Decision)
+
+    def decision_do_nothing(self):
+        '''
+        Do random action.
+        '''
+        return Decision.DO_NOTHING
 
     def update_position(self, new_postion):
         '''
         Function used by the simulator to let ant know of a new position.
         '''
-        self._positon = new_postion
+        self.position = new_postion

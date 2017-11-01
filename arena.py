@@ -8,7 +8,7 @@ simulated.
 # Imports
 import numpy as np
 from matplotlib import pyplot as plt
-
+from matplotlib.colors import ListedColormap
 
 
 # Define constants (arena numpy array key)
@@ -42,26 +42,27 @@ class Arena():
     specified as (x, y). Should a cell fulfil any of them it will count as an
     obstacle.
      '''
+
     def __init__(self, size=(100, 100), start_point=(0, 0), goals=[(-1, -1)],
                  obstacles=[], file=None):
         if file is not None:
-            (self._size, self._start_point,
+            (self._size, self.start_point,
              self._goals, self._obstacles) = self._parse_arena_file(file)
         else:
             self._size = size
-            self._start_point = start_point
+            self.start_point = start_point
             self._goals = goals
             for idx, goal in enumerate(self._goals):
                 if goal == (-1, -1):
                     self._goals[idx] = size
             self._obstacles = obstacles
 
-        self._drawing = drawing_ready
-        if self._drawing:
-            self._figure = plt.figure()
-            self._axes = plt.gca()
-
         self.narena = self._gen_np_arena()
+
+        # Create transparent-black color map for displaying water
+        self._colormap = plt.cm.binary(np.arange(plt.cm.binary.N))
+        self._colormap[:, -1] = np.linspace(0, 1, plt.cm.binary.N)
+        self._colormap = ListedColormap(self._colormap)
 
     def _gen_np_arena(self):
         '''
@@ -70,10 +71,10 @@ class Arena():
         points of interest. The second dimention is intened to hlold the
         state of the Antuino-generated markers.
         '''
-        narena = np.zeros((1,) + self._size)
+        narena = np.zeros((2,) + self._size)
         for x in range(self._size[0]):
             for y in range(self._size[1]):
-                if (x, y) == self._start_point:
+                if (x, y) == self.start_point:
                     narena[(0, x, y)] = START
                 elif (x, y) in self._goals:
                     narena[(0, x, y)] = GOAL
@@ -81,13 +82,12 @@ class Arena():
                     is_obstacle = False
                     for cond in self._obstacles:
                         if eval(cond):
-                            print('pow!')
                             is_obstacle = True
                             break
                     narena[(0, x, y)] = OBSTACLE if is_obstacle else EMPTY
         return narena
 
-    def _figurize_arena(self, axes):
+    def figurize_arena(self, axes):
         '''
         Draws a visual representation of the arena in the provided axes.
         '''
@@ -95,9 +95,9 @@ class Arena():
         circles = []
 
         # Start circle
-        circles.append(plt.Circle((self._start_point),
+        circles.append(plt.Circle((self.start_point),
                                   radius=STRT_PNT_RD,
-                                  fc=COLOR[START]))
+                                  fc=COLOR[START], zorder=1))
         # Goal circles
         for goal in self._goals:
             circles.append(plt.Circle(goal,
@@ -107,9 +107,10 @@ class Arena():
             axes.add_patch(circle)
 
         # Draw obstacles
-        print((self.narena[0,...] == OBSTACLE).any())
         # axes.pcolormesh(np.flipud(np.rot90(self.narena[0,...])) == OBSTACLE)
-        axes.pcolormesh((self.narena[0,...]).T == OBSTACLE, cmap='binary')
+        axes.pcolormesh((self.narena[0, ...]).T == OBSTACLE,
+                        cmap=self._colormap,
+                        zorder=2)
 
         # Make sure things look right
         axes.set_xlim((0, self._size[0]))
@@ -129,14 +130,21 @@ class Arena():
         # TODO
         raise NotImplementedError
 
+    def is_valid_position(self, position):
+        if position is not None:
+            return position[0] > 0 and position[0] < self._size[0] and \
+                position[1] > 0 and position[1] < self._size[1]
+        else:
+            return False
+
+
 # Module-run code (used for testing)
 if __name__ == '__main__':
     print('Starting')
     arena = Arena(obstacles=(['x >= 15 and x < 20 and y >= 10 and y < 30']))
     plt.figure()
     axes = plt.gca()
-    arena._figurize_arena(axes)
+    arena.figurize_arena(axes)
     plt.show()
 
     pass
-

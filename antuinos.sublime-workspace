@@ -1,0 +1,341 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"que",
+				"query_yes_no"
+			],
+			[
+				"pac",
+				"packages_to_install"
+			],
+			[
+				"sublim",
+				"sublime-text"
+			],
+			[
+				"sub",
+				"subprocess"
+			],
+			[
+				"Python3",
+				"python3"
+			],
+			[
+				"done",
+				"done"
+			],
+			[
+				"packa",
+				"package"
+			],
+			[
+				"package",
+				"packages_to_install"
+			],
+			[
+				"qu",
+				"query_yes_no"
+			],
+			[
+				"ex",
+				"extra_packages"
+			],
+			[
+				"python3",
+				"python3-pip"
+			],
+			[
+				"sym",
+				"sympath"
+			],
+			[
+				"av",
+				"avg_speed"
+			],
+			[
+				"_hall",
+				"_hall_handler"
+			],
+			[
+				"last",
+				"last_centre"
+			],
+			[
+				"serv",
+				"servo_seconds_per_degree"
+			]
+		]
+	},
+	"buffers":
+	[
+		{
+			"file": "arena.py",
+			"settings":
+			{
+				"buffer_size": 500,
+				"encoding": "UTF-8",
+				"line_ending": "Unix",
+				"name": "#!usr/bin/env"
+			}
+		}
+	],
+	"build_system": "",
+	"build_system_choices":
+	[
+	],
+	"build_varint": "",
+	"command_palette":
+	{
+		"height": 392.0,
+		"last_filter": "gitg",
+		"selected_items":
+		[
+			[
+				"gitg",
+				"Preferences: GitGutter Settings"
+			],
+			[
+				"check",
+				"LaTeXTools: Check system"
+			],
+			[
+				"install",
+				"Package Control: Install Package"
+			],
+			[
+				"show e",
+				"SublimeLinter: Show All Errors"
+			],
+			[
+				"linter",
+				"Preferences: SublimeLinter Settings"
+			],
+			[
+				"sublimelint",
+				"SublimeLinter: Lint This View"
+			],
+			[
+				"insta",
+				"Package Control: Install Package"
+			],
+			[
+				"trans",
+				"Transcrypt::Decrypt"
+			],
+			[
+				"instal",
+				"Package Control: Install Package"
+			]
+		],
+		"width": 605.0
+	},
+	"console":
+	{
+		"height": 188.0,
+		"history":
+		[
+			"import urllib.request,os,hashlib; h = '6f4c264a24d933ce70df5dedcf1dcaee' + 'ebe013ee18cced0ef93d5f746d80ef60'; pf = 'Package Control.sublime-package'; ipp = sublime.installed_packages_path(); urllib.request.install_opener( urllib.request.build_opener( urllib.request.ProxyHandler()) ); by = urllib.request.urlopen( 'http://packagecontrol.io/' + pf.replace(' ', '%20')).read(); dh = hashlib.sha256(by).hexdigest(); print('Error validating download (got %s instead of %s), please try manual install' % (dh, h)) if dh != h else open(os.path.join( ipp, pf), 'wb' ).write(by) "
+		]
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"expanded_folders":
+	[
+		"/home/kubafyi/Code/antuinos"
+	],
+	"file_history":
+	[
+		"/home/kubafyi/.config/sublime-text-3/Packages/User/LaTeXTools.sublime-settings",
+		"/home/kubafyi/.config/sublime-text-3/Packages/LaTeXTools/LaTeXTools.sublime-settings",
+		"/home/kubafyi/Documents/overwlof bluetoth",
+		"/home/kubafyi/.config/compton/config",
+		"/home/kubafyi/.config/sublime-text-3/Packages/User/Package Control.sublime-settings",
+		"/home/kubafyi/dotfiles/setup",
+		"/home/kubafyi/dotfiles/bashrc",
+		"/home/kubafyi/dotfiles/.gitignore",
+		"/home/kubafyi/dotfiles/gitignore_global",
+		"/etc/services",
+		"/etc/init.d/bluetooth",
+		"/home/kubafyi/dotfiles/scripts/tensorflow_activate",
+		"/home/kubafyi/dotfiles/gitconfig",
+		"/home/kubafyi/dotfiles/ST3_User_Dir/Package Control.sublime-settings",
+		"/home/kubafyi/.config/i3/config",
+		"/home/kubafyi/dotfiles/setup.py",
+		"/home/kubafyi/dotfiles/setup.sh",
+		"/home/kubafyi/.config/redshift/config",
+		"/home/kubafyi/.profile",
+		"/tmp/mozilla_kubafyi0/HW1.tex",
+		"/home/kubafyi/.config/devilspie2/gnome-terminal.ds",
+		"/etc/environment",
+		"/home/kubafyi/Code/scripts/shruggie",
+		"/etc/pulse/default.pa",
+		"/etc/modprobe.d/blacklist-file-drivers.conf",
+		"/home/kubafyi/.config/i3/conf"
+	],
+	"find":
+	{
+		"height": 23.0
+	},
+	"find_in_files":
+	{
+		"height": 0.0,
+		"where_history":
+		[
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": false,
+		"find_history":
+		[
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": false,
+		"replace_history":
+		[
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"selected": 0,
+			"sheets":
+			[
+				{
+					"buffer": 0,
+					"file": "arena.py",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 500,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								499,
+								499
+							]
+						],
+						"settings":
+						{
+							"auto_name": "#!usr/bin/env",
+							"git_gutter_is_enabled": true,
+							"rulers":
+							[
+								80
+							],
+							"syntax": "Packages/Python/Python.sublime-syntax",
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 0,
+					"type": "text"
+				}
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 23.0
+	},
+	"input":
+	{
+		"height": 37.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"output.find_results":
+	{
+		"height": 0.0
+	},
+	"pinned_build_system": "",
+	"project": "antuinos.sublime-project",
+	"replace":
+	{
+		"height": 42.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"select_symbol":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"selected_group": 0,
+	"settings":
+	{
+	},
+	"show_minimap": true,
+	"show_open_files": false,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 165.0,
+	"status_bar_visible": true,
+	"template_settings":
+	{
+	}
+}
