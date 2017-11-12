@@ -59,19 +59,18 @@ class Simulator():
         '''
         Execute one step of the simulaton.
         '''
-        print('step')
         self._agents.sense()
         self._agents.decide()
 
         new_pos = np.copy(self._agents._positions)
-        new_pos[np.argwhere(
-            self._agents._decisions[ant.Decision.GO_N.value] == 1)] += [0, 1]
-        new_pos[np.argwhere(
-            self._agents._decisions[ant.Decision.GO_S.value] == 1)] += [0, -1]
-        new_pos[np.argwhere(
-            self._agents._decisions[ant.Decision.GO_E.value] == 1)] += [1, 0]
-        new_pos[np.argwhere(
-            self._agents._decisions[ant.Decision.GO_W.value] == 1)] += [-1, 0]
+        new_pos[np.argwhere(self._agents._decisions
+                            [:, ant.Decision.GO_N.value] == 1)] += [0, 1]
+        new_pos[np.argwhere(self._agents._decisions
+                            [:, ant.Decision.GO_S.value] == 1)] += [0, -1]
+        new_pos[np.argwhere(self._agents._decisions
+                            [:, ant.Decision.GO_E.value] == 1)] += [1, 0]
+        new_pos[np.argwhere(self._agents._decisions
+                            [:, ant.Decision.GO_W.value] == 1)] += [-1, 0]
 
         valid_pos = self._arena.are_valid_positions(new_pos)
         self._agents.update_positions(new_pos, valid_pos)
@@ -95,7 +94,7 @@ class Simulator():
         provided axis.
         '''
         self._arena.figurize_arena(self._axes)
-        self._moving_bits, = self._axes.plot([], [], 'bo', ms=4, color='green',
+        self._moving_bits, = self._axes.plot([], [], 'bo', ms=2, color='green',
                                              zorder=20)
         return self._moving_bits,
 

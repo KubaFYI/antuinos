@@ -131,10 +131,11 @@ class Arena():
         raise NotImplementedError
 
     def are_valid_positions(self, positions):
-        valid_positions = np.argwhere(positions[:, 0] > 0)
-        valid_positions *= np.argwhere(positions[:, 0] < self._size[0])
-        valid_positions *= np.argwhere(positions[:, 1] > 0)
-        valid_positions *= np.argwhere(positions[:, 1] < self._size[1])
+        valid_positions = positions[:, 0] > 0
+        valid_positions *= positions[:, 0] < self._size[0]
+        valid_positions *= positions[:, 1] > 0
+        valid_positions *= positions[:, 1] < self._size[1]
+        return valid_positions
 
 
 # Module-run code (used for testing)
