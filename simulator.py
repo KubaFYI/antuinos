@@ -31,6 +31,8 @@ class Simulator():
         self._axes = None
         self._anim = None
 
+        self._scores = None
+
     def _populate(self):
         '''
         Populates arena with agents around the starting point
@@ -46,34 +48,34 @@ class Simulator():
         deviation2[:, 1] = np.cos(
             deviation[:, 0] * np.pi * 2) * deviation[:, 1] * arena.STRT_PNT_RD
         starting_positions += (deviation2 + 0.5).astype(int)
-        for i in range(self._agent_no):
-            self._agents.append(ant.Ant(self._arena.narena,
-                                        starting_positions[i, :],
-                                        self._decision_mode))
+
+        self._agents = ant.Ants(self._arena.narena,
+                                starting_positions,
+                                self._decision_mode)
+
+        self._scores = np.zeros(self._agent_no)
 
     def _step(self):
         '''
         Execute one step of the simulaton.
         '''
-        for agent in self._agents:
-            agent.sense()
-            agent.decide()
+        print('step')
+        self._agents.sense()
+        self._agents.decide()
 
-            new_position = None
-            if agent.decision == ant.Decision.GO_N:
-                new_position = (agent.position[0], agent.position[1] + 1)
-            elif agent.decision == ant.Decision.GO_S:
-                new_position = (agent.position[0], agent.position[1] - 1)
-            elif agent.decision == ant.Decision.GO_E:
-                new_position = (agent.position[0] + 1, agent.position[1])
-            elif agent.decision == ant.Decision.GO_W:
-                new_position = (agent.position[0] - 1, agent.position[1])
+        new_pos = np.copy(self._agents._positions)
+        new_pos[np.argwhere(
+            self._agents._decisions[ant.Decision.GO_N.value] == 1)] += [0, 1]
+        new_pos[np.argwhere(
+            self._agents._decisions[ant.Decision.GO_S.value] == 1)] += [0, -1]
+        new_pos[np.argwhere(
+            self._agents._decisions[ant.Decision.GO_E.value] == 1)] += [1, 0]
+        new_pos[np.argwhere(
+            self._agents._decisions[ant.Decision.GO_W.value] == 1)] += [-1, 0]
 
-            if self._arena.is_valid_position(new_position):
-                agent.update_position(new_position)
-            else:
-                # Nothing to update in the external state of the agent
-                pass
+        valid_pos = self._arena.are_valid_positions(new_pos)
+        self._agents.update_positions(new_pos, valid_pos)
+
         self._step_number += 1
 
     def _draw_still_on_axes(self):
@@ -83,11 +85,9 @@ class Simulator():
         '''
         self._axes.clear()
         self._arena.figurize_arena(self._axes)
-        ant_coords = np.empty((len(self._agents), 2))
-        for idx, agent in enumerate(self._agents):
-            ant_coords[idx, :] = agent.position
-        self._axes.plot(ant_coords[:, 0], ant_coords[:, 1], 'bo', ms=4,
-                        color='green', zorder=20)
+        self._axes.plot(self._agents._positions[:, 0],
+                        self._agents._positions[:, 1],
+                        'bo', ms=4, color='green', zorder=20)
 
     def _setup_anim(self):
         '''
@@ -102,11 +102,8 @@ class Simulator():
     def _animate(self, i):
         if self._step_number < i:
             self._step()
-        ant_coords = np.empty((len(self._agents), 2))
-
-        for idx, agent in enumerate(self._agents):
-            ant_coords[idx, :] = agent.position
-        self._moving_bits.set_data(ant_coords[:, 0], ant_coords[:, 1])
+        self._moving_bits.set_data(self._agents._positions[:, 0],
+                                   self._agents._positions[:, 1])
         return self._moving_bits,
 
     def run(self, animate=True):
@@ -132,7 +129,7 @@ if __name__ == '__main__':
                     max_steps=max_steps,
                     agent_no=agent_no)
     sim._populate()
-    animate = False
+    animate = True
     sim._fig = plt.figure()
     sim._axes = plt.gca()
 
