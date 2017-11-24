@@ -53,6 +53,9 @@ class Simulator():
                                 starting_positions,
                                 self._decision_mode)
 
+        self._agents.set_decision_matrix(
+            np.random.rand(ant.decisions_dim, ant.senses_dim))
+
         self._scores = np.zeros(self._agent_no)
 
     def _step(self):
@@ -64,14 +67,15 @@ class Simulator():
 
         new_pos = np.copy(self._agents._positions)
         new_pos[np.argwhere(self._agents._decisions
-                            [:, ant.Decision.GO_N.value] == 1)] += [0, 1]
+                            [:, ant.Decision.GO_N.value])] += [0, 1]
         new_pos[np.argwhere(self._agents._decisions
-                            [:, ant.Decision.GO_S.value] == 1)] += [0, -1]
+                            [:, ant.Decision.GO_S.value])] += [0, -1]
         new_pos[np.argwhere(self._agents._decisions
-                            [:, ant.Decision.GO_E.value] == 1)] += [1, 0]
+                            [:, ant.Decision.GO_E.value])] += [1, 0]
         new_pos[np.argwhere(self._agents._decisions
-                            [:, ant.Decision.GO_W.value] == 1)] += [-1, 0]
+                            [:, ant.Decision.GO_W.value])] += [-1, 0]
 
+        new_pos %= self._arena.narena[0, ...].shape
         valid_pos = self._arena.are_valid_positions(new_pos)
         self._agents.update_positions(new_pos, valid_pos)
 
@@ -96,6 +100,7 @@ class Simulator():
         self._arena.figurize_arena(self._axes)
         self._moving_bits, = self._axes.plot([], [], 'bo', ms=2, color='green',
                                              zorder=20)
+        self.anim_counter = 0
         return self._moving_bits,
 
     def _animate(self, i):
@@ -103,6 +108,8 @@ class Simulator():
             self._step()
         self._moving_bits.set_data(self._agents._positions[:, 0],
                                    self._agents._positions[:, 1])
+        print('Animation step {}.'.format(self.anim_counter))
+        self.anim_counter += 1
         return self._moving_bits,
 
     def run(self, animate=True):
@@ -111,24 +118,36 @@ class Simulator():
                                                  init_func=self._setup_anim,
                                                  frames=self._max_steps,
                                                  interval=20,
+                                                 repeat=False,
                                                  blit=True)
         else:
             while self._step_number < self._max_steps:
                 self._step()
 
 
+def enable_xkcd_mode():
+    from matplotlib import patheffects
+    from matplotlib import rcParams
+    plt.xkcd()
+    rcParams['path.effects'] = [patheffects.withStroke(linewidth=0)]
+
+
 if __name__ == '__main__':
+    # plt.close('all')
     print('Starting')
-    max_steps = 100
+    max_steps = 20000
     agent_no = 100
     test_arena = arena.Arena(start_point=(50, 50), obstacles=(
         ['x >= 15 and x < 20 and y >= 10 and y < 30']))
     sim = Simulator(target_arena=test_arena,
-                    decision_mode='random',
+                    decision_mode='linear',
+                    # decision_mode='random',
                     max_steps=max_steps,
                     agent_no=agent_no)
     sim._populate()
     animate = True
+    # animate = True
+    # plt.ion()
     sim._fig = plt.figure()
     sim._axes = plt.gca()
 

@@ -131,11 +131,7 @@ class Arena():
         raise NotImplementedError
 
     def are_valid_positions(self, positions):
-        valid_positions = positions[:, 0] > 0
-        valid_positions *= positions[:, 0] < self._size[0]
-        valid_positions *= positions[:, 1] > 0
-        valid_positions *= positions[:, 1] < self._size[1]
-        return valid_positions
+        return self.narena[0, positions[:, 0], positions[:, 1]] == 0
 
 
 # Module-run code (used for testing)

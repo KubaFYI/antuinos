@@ -12,12 +12,6 @@ import numpy as np
 from enum import Enum
 
 
-class Senses(Enum):
-    PHEROMONE_GRAD = 0
-    OCCUPANCY = 1
-    VISION = 2
-
-
 class Decision(Enum):
     GO_N = 0
     GO_S = 1
@@ -53,23 +47,38 @@ class Direction(Enum):
     SE = 7
 
 
-# Numpy datatype representing single agent data
-default_dtype = np.uint32
-position_dim = 2
-directional_senses = 2
-senses_dim = (directional_senses * len(Direction) +
-              len(Senses) - directional_senses)
-decisions_dim = len(Decision)
-ant_dtype = np.dtype([('position', default_dtype, position_dim),
-                      ('senses', default_dtype, senses_dim),
-                      ('decisions', default_dtype, decisions_dim)])
+class Senses(Enum):
+    ON_OBSTACLE_EDGE = 0
+    CARRYING_FOOD = ON_OBSTACLE_EDGE + 1
+    PHEROMONE_GRAD = CARRYING_FOOD + 1
+    END = PHEROMONE_GRAD + len(Direction) / 2
+    # VISION = PHEROMONE_GRAD + len(Direction) / 2
+    # END = VISION + len(Direction)
 
+
+sense_idx = {'on_obst_edge': (0, 1),
+             'carry_food': (1, 2),
+             'phero_grad': (2, 2 + len(Direction) / 2)}
+
+# Numpy datatype representing single agent data
+default_dtype = np.float64
+position_dim = 2
+senses_dim = int(1 + 1 + len(Direction) / 2)
+decisions_dim = len(Decision)
+directional_senses = 1
+half_directional_senses = 1
+
+ant_dtype = np.dtype([('position', np.int, position_dim),
+                      ('senses', default_dtype, senses_dim),
+                      ('decisions', np.bool, decisions_dim)])
 
 RELATIVE_COORDS = [(-1, 1), (0, 1), (1, 1), (-1, 0),
                    (1, 0), (-1, -1), (0, -1), (1, -1)]
 
 # Catalogue of decision-making functions
-DECISION_FNCTN = {'random': 'decision_random'}
+DECISION_FNCTN = {'random': 'decision_random',
+                  'nothing': 'decision_do_nothing',
+                  'linear': 'decision_linear'}
 
 
 class Ants():
@@ -78,8 +87,8 @@ class Ants():
     each agent's internal and external state. And handles production of
     decision data out of agents' sensory inputs.
 
-    Each Ant can try to exectute the following actions (planned future actions
-    mared with an asterisk *):
+    Each Ant can try to execute the following actions (planned future actions
+    marked with an asterisk *):
         - Move North
         - Move South
         - Move East
@@ -89,8 +98,8 @@ class Ants():
         - Marker Laying On*
         - Marker Laying Off*
 
-    Each Ant is capable of taking in the folowing sensory inputs:
-        - 'Pheromone' marker strengh postitive gradient -> one of four values
+    Each Ant is capable of taking in the flowing sensory inputs:
+        - 'Pheromone' marker strength positive gradient -> one of four values
                         (N/S/W/E) plus diagonal combinations (e.g. NE but not
                         NS) or an indication of a local maximum (only negative
                         gradients) as well as the magnitude.
@@ -106,8 +115,8 @@ class Ants():
     self._ants is an array of shape (N, ...) containing a matrix of states for
     each one of N agents. The state matrices themselves are sub-arrays of shape
     (Pos, Se, De) where Pos is the position of an agent (2 elements x and y),
-    Se is the input of the sensorty apparatus at that given moment (8 elements
-    for Pheromone Gradient Indicatior and Out Vision (each) and 4 elements for
+    Se is the input of the sensory apparatus at that given moment (8 elements
+    for Pheromone Gradient Indicator and Out Vision (each) and 4 elements for
     the Occupancy indicator, 20 elements in total), and De is the current
     decision matrix (9 elements in total).
     '''
@@ -116,14 +125,14 @@ class Ants():
         self._narena = narena
         self._position_dim = 2
         self._directional_senses = 2
-        self._senses_dim = (self._directional_senses * len(Direction) +
-                            len(Senses) - self._directional_senses)
-        self._decision_dim = len(Decision)
+        self._senses_dim = senses_dim
+        self._decisions_dim = decisions_dim
 
+        self.ant_no = start_positions.shape[0]
         self._positions = np.array(start_positions)
-        self._senses = np.empty((len(start_positions), self._senses_dim),
-                                dtype=default_dtype)
-        self._decisions = np.empty((len(start_positions), self._decision_dim),
+        self._senses = np.random.rand(
+            len(start_positions), self._senses_dim).astype(default_dtype)
+        self._decisions = np.empty((len(start_positions), self._decisions_dim),
                                    dtype=default_dtype)
 
         if decision_mode is not None:
@@ -131,16 +140,15 @@ class Ants():
         else:
             self._decision_cb = self.decision_do_nothing
 
+        self.lin_dec_mat = None
+
     def where_am_i(self):
         '''
         Extract the type of the cell at current location
         '''
-        # if self._narena[(0,) + tuple(self.position)] < 0:
-        #     # Cell of interest
-        #     return self._narena[(0,) + tuple(self.position)]
-        # else:
-        #     # Empty field
-        #     return 0
+        # ants_on
+        # self._senses[:, sense_idx['phero_grad'][0]] ==
+        pass
 
     def what_do_i_see(self):
         '''
@@ -176,41 +184,35 @@ class Ants():
         Extract information about the gradient of the pheromone marker at the
         current cell.
 
-        The function returns a tuple of two values: the first one is the
-        magnitude of the largest positive gradient and the second is a
-        8-element list indicating the direction of the gradient.
+        The function modifies the sensory input array
         '''
-        pass
-        # result = np.empty(8, dtype=bool)
-        # marker_mag_here = self._narena[1, self.position[0], self.position[1]]
-        # strongest_dir = None
-        # strongest_pos_grad = 0
-        # for i in range(result.shape[0]):
-        #     x = self.position[0] + RELATIVE_COORDS[i][0]
-        #     y = self.position[1] + RELATIVE_COORDS[i][1]
-        #     marker_mag = self._narena[1, x, y] - marker_mag_here
-        #     if i in [Direction.NW, Direction.NE, Direction.SW, Direction.SE]:
-        #         divider = np.sqrt(2)
-        #     else:
-        #         divider = 1
-        #     if (marker_mag - marker_mag_here) / divider > strongest_pos_grad:
-        #         strongest_pos_grad = (marker_mag - marker_mag_here) / divider
-        #         strongest_dir = i
 
-        # result_dirs = [False] * 8
-        # if strongest_dir is not None:
-        #     result_dirs[strongest_dir] = True
+        grad_thresh = 0
 
-        # return strongest_pos_grad, result_dirs
+        marker_mag_here = self._narena[1, self._positions[:, 0],
+                                       self._positions[:, 1]]
+        strng_dir = np.zeros(self.ant_no, dtype=default_dtype) - 1
+        # strng_pos_grad = np.zeros(self.ant_no, dtype=default_dtype)
+        for i in range(len(Direction) / 2):
+            x = self._positions[:, 0] + RELATIVE_COORDS[i / 2 + 1][0]
+            y = self._positions[:, 1] + RELATIVE_COORDS[i / 2 + 1][1]
+            diff_marker_mag = self._narena[1, x, y] - marker_mag_here
+            change_idx = diff_marker_mag > grad_thresh
+            # strng_pos_grad[change_idx] = strng_pos_grad[diff_marker_mag]
+            strng_dir[change_idx] = i
+
+        self._senses[:, sense_idx['phero_grad'][0]:sense_idx['phero_grad'][1]] = np.zeros(
+            self.ant_no, len(Direction) / 2)
+        self._senses[:, sense_idx['phero_grad'][0] + strng_dir] = True
 
     def sense(self):
         '''
         Update sensory input.
         '''
-        pass
-        # self._senses['loc_vis'] = self.where_am_i()
-        # self._senses['out_vis'] = self.what_do_i_see()
-        # self._senses['marker'] = self.what_do_i_smell()
+        # self.where_am_i()
+        # self.what_do_i_see()
+        # self.what_do_i_smell()
+        self._senses = np.random.randint(0, 100, self._senses.shape)
 
     def decide(self):
         '''
@@ -232,6 +234,21 @@ class Ants():
         Do nothing
         '''
         self._decisions = np.zeros_like(self._decisions)
+
+    def decision_linear(self):
+        '''
+        Do nothing
+        '''
+        decision_strenghts = self.lin_dec_mat.dot(self._senses.T).T
+        normalizers = np.max(decision_strenghts, axis=1)
+        self._decisions = np.expand_dims(normalizers, 1) == decision_strenghts
+
+    def set_decision_matrix(self, decision_matrix):
+        '''
+        Sets the linear decision matrix to be used for decisionmaking.
+        The matrix must be of size Senses x Decisions
+        '''
+        self.lin_dec_mat = decision_matrix
 
     def update_positions(self, new_postions, valid_positions):
         '''
