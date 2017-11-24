@@ -33,21 +33,36 @@ class Simulator():
 
         self._scores = None
 
+    def _gen_rand_pos(self, number, centre, std_dev):
+        retval = np.tile(centre,
+                         (number, 1))
+
+        deviation = np.random.normal(0, 1,
+                                     (number, 2))
+        deviation2 = np.empty_like(deviation)
+        deviation2[:, 0] = np.sin(
+            deviation[:, 0] * np.pi * 2) * deviation[:, 1] * std_dev
+        deviation2[:, 1] = np.cos(
+            deviation[:, 0] * np.pi * 2) * deviation[:, 1] * std_dev
+        retval += (deviation2 + 0.5).astype(int)
+        return retval
+
     def _populate(self):
         '''
         Populates arena with agents around the starting point
         '''
-        starting_positions = np.tile(self._arena.start_point,
-                                     (self._agent_no, 1))
+        starting_positions = self._gen_rand_pos(self._agent_no,
+                                                self._arena.start_point,
+                                                arena.STRT_PNT_RD)
 
-        deviation = np.random.normal(0, 1,
-                                     (self._agent_no, 2))
-        deviation2 = np.empty_like(deviation)
-        deviation2[:, 0] = np.sin(
-            deviation[:, 0] * np.pi * 2) * deviation[:, 1] * arena.STRT_PNT_RD
-        deviation2[:, 1] = np.cos(
-            deviation[:, 0] * np.pi * 2) * deviation[:, 1] * arena.STRT_PNT_RD
-        starting_positions += (deviation2 + 0.5).astype(int)
+        invalid_pos = np.logical_not(
+            self._arena.are_valid_positions(starting_positions))
+        while invalid_pos.any():
+            starting_positions[invalid_pos, :] = self._gen_rand_pos(sum(invalid_pos),
+                                                                    self._arena.start_point,
+                                                                    arena.STRT_PNT_RD)
+            invalid_pos = np.logical_not(
+                self._arena.are_valid_positions(starting_positions))
 
         self._agents = ant.Ants(self._arena.narena,
                                 starting_positions,
@@ -140,7 +155,7 @@ if __name__ == '__main__':
     test_arena = arena.Arena(start_point=(50, 50), obstacles=(
         [['rect', (20, 30), (30, 45)],
          ['rect', (15, 15), (90, 20)],
-         ['circ', (50, 25), 6],
+         ['circ', (50, 25), 15],
          ['circ', (75, 75), 8]]))
     sim = Simulator(target_arena=test_arena,
                     decision_mode='linear',
