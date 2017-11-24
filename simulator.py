@@ -108,7 +108,7 @@ class Simulator():
             self._step()
         self._moving_bits.set_data(self._agents._positions[:, 0],
                                    self._agents._positions[:, 1])
-        print('Animation step {}.'.format(self.anim_counter))
+        # print('Animation step {}.'.format(self.anim_counter))
         self.anim_counter += 1
         return self._moving_bits,
 
@@ -138,7 +138,10 @@ if __name__ == '__main__':
     max_steps = 20000
     agent_no = 100
     test_arena = arena.Arena(start_point=(50, 50), obstacles=(
-        ['x >= 15 and x < 20 and y >= 10 and y < 30']))
+        [['rect', (20, 30), (30, 45)],
+         ['rect', (15, 15), (90, 20)],
+         ['circ', (50, 25), 6],
+         ['circ', (75, 75), 8]]))
     sim = Simulator(target_arena=test_arena,
                     decision_mode='linear',
                     # decision_mode='random',

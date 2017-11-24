@@ -17,11 +17,10 @@ class Decision(Enum):
     GO_S = 1
     GO_E = 2
     GO_W = 3
-    ATTACH = 4
-    DETACH = 5
-    MARKER_ON = 6
-    MARKER_OFF = 7
-    DO_NOTHING = 8
+    # ATTACH = 4
+    # DETACH = 5
+    MARKER_SPOT = 6
+    DO_NOTHING = 7
 
 
 class ANTS_IDX(Enum):
