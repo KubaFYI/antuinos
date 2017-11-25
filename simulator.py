@@ -14,10 +14,10 @@ from matplotlib import animation
 
 # Constants used in scoring runs
 scr_act_cost = 0.1
-scr_distance_mul = 0.25
+scr_distance_mul = 5
 scr_distance_adj = 3
-scr_food_pickup_bonus = 20
-scr_deposit_bonus = 40
+scr_food_pickup_bonus = 1
+scr_deposit_bonus = 0
 
 
 class Simulator():
@@ -25,7 +25,7 @@ class Simulator():
     Handles simulation of the entire life of agents in the arena.
     '''
 
-    def __init__(self, target_arena, decision_mode, max_steps, agent_no):
+    def __init__(self, target_arena, decision_mode, max_steps, agent_no, seed=None):
         self._arena = target_arena
         self._agents = []
 
@@ -39,6 +39,8 @@ class Simulator():
         self._anim = None
 
         self._scores = None
+
+        np.random.seed(seed)
 
     def _gen_rand_pos(self, number, centre, std_dev):
         retval = np.tile(centre,
@@ -80,6 +82,19 @@ class Simulator():
 
         self._scores = np.zeros(self._agent_no)
 
+    def tile_coords(self, points):
+        '''
+        Helper function used to generate sets of coordinates as if the arena
+        was on a torus.
+        '''
+        tiled_points = np.array(points, ndmin=2)
+        for offset in ant.RELATIVE_COORDS:
+            offset_points = (np.array(self._arena._goals.copy()) +
+                             np.array([offset[0] * self._arena._size[0],
+                                       offset[1] * self._arena._size[1]]))
+            np.concatenate((tiled_points, offset_points))
+        return tiled_points
+
     def _score(self):
         '''
         Updates scores for all agents and returns the swarm's mean.
@@ -98,8 +113,11 @@ class Simulator():
         food_distances = np.ones(self._agents.ant_no) * \
             np.max(self._arena._size)
 
-        for goal in self._arena._goals:
-            distances = np.linalg.norm(self._agents._positions - np.array(goal),
+        # Make sure we calculate the right distanes given we are on a torus
+        tiled_goals = self.tile_coords(self._arena._goals)
+
+        for goal in tiled_goals:
+            distances = np.linalg.norm(self._agents._positions - goal,
                                        ord=2, axis=1)
             better_dists = food_distances > distances
             food_distances[better_dists] = distances[better_dists]
@@ -108,8 +126,15 @@ class Simulator():
                                         scr_distance_adj))
 
         # But for carrying we want to go to go back home instead
-        home_distances = np.linalg.norm(self._agents._positions - np.array(self._arena.start_point),
-                                        ord=2, axis=1)
+        home_distances = np.ones(self._agents.ant_no) * \
+            np.max(self._arena._size)
+        tiled_start_pos = self.tile_coords(self._arena.start_point)
+        for home in tiled_start_pos:
+            distances = np.linalg.norm(self._agents._positions - home,
+                                       ord=2, axis=1)
+            better_dists = home_distances > distances
+            home_distances[better_dists] = distances[better_dists]
+
         self._scores[carrying] += (scr_distance_mul /
                                    (np.maximum(home_distances[carrying], arena.GL_PNT_RD - 1) +
                                     scr_distance_adj))
@@ -146,7 +171,8 @@ class Simulator():
 
         self._step_number += 1
         mean_score = self._score()
-        print('Mean score: {}'.format(mean_score))
+        return mean_score
+        # print('Mean score: {}'.format(mean_score))
 
     def _draw_still_on_axes(self):
         '''
@@ -179,17 +205,38 @@ class Simulator():
         self.anim_counter += 1
         return self._moving_bits,
 
-    def run(self, animate=True):
+    def run(self, score_history=False, figure=False, animate=False):
+        if score_history:
+            retval = []
+
         if animate:
+            retval = None
+            self._fig = plt.figure()
+            self._axes = plt.gca()
+
             self._anim = animation.FuncAnimation(self._fig, self._animate,
                                                  init_func=self._setup_anim,
                                                  frames=self._max_steps,
                                                  interval=20,
                                                  repeat=False,
                                                  blit=True)
+            plt.show()
         else:
+            if figure:
+                self._fig = plt.figure()
+                self._axes = plt.gca()
+
             while self._step_number < self._max_steps:
-                self._step()
+                if score_history:
+                    retval.append(self._step())
+                else:
+                    retval = self._step()
+
+            if figure:
+                sim._draw_still_on_axes()
+                plt.show()
+
+        return retval
 
 
 def enable_xkcd_mode():
@@ -202,9 +249,10 @@ def enable_xkcd_mode():
 if __name__ == '__main__':
     # plt.close('all')
     print('Starting')
-    max_steps = 2000
-    agent_no = 200
-    test_arena = arena.Arena(start_point=(50, 50),
+    max_steps = 250
+    agent_no = 30
+    test_arena = arena.Arena(size=(300, 300),
+                             start_point=(20, 20),
                              goals=[(95, 75), (40, 87)],
                              obstacles=(
         [['rect', (20, 30), (30, 45)],
@@ -215,18 +263,15 @@ if __name__ == '__main__':
                     decision_mode='linear',
                     # decision_mode='random',
                     max_steps=max_steps,
-                    agent_no=agent_no)
+                    agent_no=agent_no,
+                    seed=7)
     sim._populate()
-    animate = True
-    # animate = False
-    # plt.ion()
-    sim._fig = plt.figure()
-    sim._axes = plt.gca()
 
     start_time = time.time()
-    sim.run(animate)
-    print('Average time per step per agent = {}ms'.format(
-        (time.time() - start_time) / max_steps / agent_no * 1000))
-    if not animate:
-        sim._draw_still_on_axes()
-    plt.show()
+    scores = sim.run(score_history=True,
+                     # figure=False)
+                     animate=True)
+
+    # plt.figure()
+    # plt.plot(np.linspace(0, 1, max_steps), scores)
+    # plt.show()
