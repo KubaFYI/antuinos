@@ -9,6 +9,7 @@ improvement.
 
 # Imports
 import numpy as np
+import arena
 from enum import Enum
 
 
@@ -141,13 +142,19 @@ class Ants():
 
         self.lin_dec_mat = None
 
-    def where_am_i(self):
+    def where_do_i_stand(self):
         '''
         Extract the type of the cell at current location
         '''
-        # ants_on
-        # self._senses[:, sense_idx['phero_grad'][0]] ==
-        pass
+        ants_on_home = self._narena[arena.HOME_LAYER,
+                                    self._positions[:, 0],
+                                    self._positions[:, 1]] == 1
+        ants_on_goal = self._narena[arena.GOAL_LAYER,
+                                    self._positions[:, 0],
+                                    self._positions[:, 1]] == 1
+
+        self._senses[ants_on_home, sense_idx['carry_food'][0]] = 0
+        self._senses[ants_on_goal, sense_idx['carry_food'][0]] = 1
 
     def what_do_i_see(self):
         '''
@@ -208,7 +215,7 @@ class Ants():
         '''
         Update sensory input.
         '''
-        # self.where_am_i()
+        self.where_do_i_stand()
         # self.what_do_i_see()
         # self.what_do_i_smell()
         self._senses = np.random.randint(0, 100, self._senses.shape)
