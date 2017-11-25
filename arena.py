@@ -9,7 +9,7 @@ simulated.
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.colors import ListedColormap
-import pdb
+# import pdb
 
 
 # Define constants (arena numpy array key)
@@ -17,6 +17,12 @@ START = -1
 GOAL = -2
 OBSTACLE = -3
 EMPTY = 0
+
+# Define narena layers
+OCCUPANCY_LAYER = 0
+MARKER_LAYER = 1
+HOME_LAYER = 2
+GOAL_LAYER = 3
 
 # Constants used in drawing
 COLOR = {START: 'purple',
@@ -113,8 +119,14 @@ class Arena():
 
         home_points = self._gen_coord_gird_circle(
             self.start_point, STRT_PNT_RD)
+
+        goal_points = None
         for goal in self._goals:
-            goal_points = self._gen_coord_gird_circle(goal, GL_PNT_RD)
+            one_goal_points = self._gen_coord_gird_circle(goal, GL_PNT_RD)
+            if goal_points is None:
+                goal_points = one_goal_points
+            else:
+                goal_points = np.concatenate((goal_points, one_goal_points))
 
         obstacle_points = None
         for obst in self._obstacles:
