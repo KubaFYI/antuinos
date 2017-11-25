@@ -248,7 +248,13 @@ class Ants():
         '''
         Do nothing
         '''
-        decision_strenghts = self.lin_dec_mat.dot(self._senses.T).T
+        if len(self.lin_dec_mat.shape) > 2:
+            # Each ant has it's own decision making brain
+            decision_strenghts = np.empty((self.ant_no, len(Decision)))
+            for i in range(self.ant_no):
+                decision_strenghts[i] = self.lin_dec_mat[i].dot(self._senses[i])
+        else:
+            decision_strenghts = self.lin_dec_mat.dot(self._senses.T).T
         normalizers = np.max(decision_strenghts, axis=1)
         self._decisions = np.expand_dims(normalizers, 1) == decision_strenghts
 
