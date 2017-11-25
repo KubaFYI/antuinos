@@ -12,6 +12,13 @@ import time
 from matplotlib import pyplot as plt
 from matplotlib import animation
 
+# Constants used in scoring runs
+scr_act_cost = 0.1
+scr_distance_mul = 0.25
+scr_distance_adj = 3
+scr_food_pickup_bonus = 20
+scr_deposit_bonus = 40
+
 
 class Simulator():
     '''
@@ -73,6 +80,49 @@ class Simulator():
 
         self._scores = np.zeros(self._agent_no)
 
+    def _score(self):
+        '''
+        Updates scores for all agents and returns the swarm's mean.
+        '''
+
+        # Performing an action costs something
+        active_ants = np.logical_not(
+            self._agents._decisions[:, ant.Decision.DO_NOTHING.value] == 1)
+        self._scores[active_ants] -= scr_act_cost
+
+        # For non-carrying ants being nearer food source is good
+        carrying = self._agents._senses[:, ant.sense_idx['carry_food']] == 1
+        non_carrying = np.logical_not(carrying)
+
+        # assume we are as far as only possible far
+        food_distances = np.ones(self._agents.ant_no) * \
+            np.max(self._arena._size)
+
+        for goal in self._arena._goals:
+            distances = np.linalg.norm(self._agents._positions - np.array(goal),
+                                       ord=2, axis=1)
+            better_dists = food_distances > distances
+            food_distances[better_dists] = distances[better_dists]
+        self._scores[non_carrying] += (scr_distance_mul /
+                                       (np.maximum(distances[non_carrying], arena.GL_PNT_RD - 1) +
+                                        scr_distance_adj))
+
+        # But for carrying we want to go to go back home instead
+        home_distances = np.linalg.norm(self._agents._positions - np.array(self._arena.start_point),
+                                        ord=2, axis=1)
+        self._scores[carrying] += (scr_distance_mul /
+                                   (np.maximum(home_distances[carrying], arena.GL_PNT_RD - 1) +
+                                    scr_distance_adj))
+
+        # We also need to reward picking up food
+        self._scores[np.logical_and(
+            non_carrying, self._agents.ants_on_goal)] += scr_food_pickup_bonus
+        # And returning it to home
+        self._scores[np.logical_and(
+            carrying, self._agents.ants_on_home)] += scr_deposit_bonus
+
+        return np.mean(self._scores)
+
     def _step(self):
         '''
         Execute one step of the simulaton.
@@ -95,6 +145,8 @@ class Simulator():
         self._agents.update_positions(new_pos, valid_pos)
 
         self._step_number += 1
+        mean_score = self._score()
+        print('Mean score: {}'.format(mean_score))
 
     def _draw_still_on_axes(self):
         '''
@@ -150,9 +202,11 @@ def enable_xkcd_mode():
 if __name__ == '__main__':
     # plt.close('all')
     print('Starting')
-    max_steps = 20000
-    agent_no = 100
-    test_arena = arena.Arena(start_point=(50, 50), obstacles=(
+    max_steps = 2000
+    agent_no = 200
+    test_arena = arena.Arena(start_point=(50, 50),
+                             goals=[(95, 75), (40, 87)],
+                             obstacles=(
         [['rect', (20, 30), (30, 45)],
          ['rect', (15, 15), (90, 20)],
          ['circ', (50, 25), 15],
@@ -164,7 +218,7 @@ if __name__ == '__main__':
                     agent_no=agent_no)
     sim._populate()
     animate = True
-    # animate = True
+    # animate = False
     # plt.ion()
     sim._fig = plt.figure()
     sim._axes = plt.gca()

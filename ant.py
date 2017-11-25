@@ -18,10 +18,10 @@ class Decision(Enum):
     GO_S = 1
     GO_E = 2
     GO_W = 3
-    # ATTACH = 4
-    # DETACH = 5
-    MARKER_SPOT = 6
-    DO_NOTHING = 7
+    MARKER_SPOT = 4
+    DO_NOTHING = 5
+    # ATTACH = 6
+    # DETACH = 7
 
 
 class ANTS_IDX(Enum):
@@ -57,7 +57,7 @@ class Senses(Enum):
 
 
 sense_idx = {'on_obst_edge': (0, 1),
-             'carry_food': (1, 2),
+             'carry_food': 1,
              'phero_grad': (2, 2 + len(Direction) / 2)}
 
 # Numpy datatype representing single agent data
@@ -134,6 +134,7 @@ class Ants():
             len(start_positions), self._senses_dim).astype(default_dtype)
         self._decisions = np.empty((len(start_positions), self._decisions_dim),
                                    dtype=default_dtype)
+        self.scores = np.zeros(self.ant_no)
 
         if decision_mode is not None:
             self._decision_cb = eval('self.' + DECISION_FNCTN[decision_mode])
@@ -141,20 +142,22 @@ class Ants():
             self._decision_cb = self.decision_do_nothing
 
         self.lin_dec_mat = None
+        self.ants_on_home = np.zeros(self.ant_no, dtype=np.bool)
+        self.ants_on_goal = np.zeros(self.ant_no, dtype=np.bool)
 
     def where_do_i_stand(self):
         '''
         Extract the type of the cell at current location
         '''
-        ants_on_home = self._narena[arena.HOME_LAYER,
-                                    self._positions[:, 0],
-                                    self._positions[:, 1]] == 1
-        ants_on_goal = self._narena[arena.GOAL_LAYER,
-                                    self._positions[:, 0],
-                                    self._positions[:, 1]] == 1
+        self.ants_on_home = self._narena[arena.HOME_LAYER,
+                                         self._positions[:, 0],
+                                         self._positions[:, 1]] == 1
+        self.ants_on_goal = self._narena[arena.GOAL_LAYER,
+                                         self._positions[:, 0],
+                                         self._positions[:, 1]] == 1
 
-        self._senses[ants_on_home, sense_idx['carry_food'][0]] = 0
-        self._senses[ants_on_goal, sense_idx['carry_food'][0]] = 1
+        self._senses[self.ants_on_home, sense_idx['carry_food']] = 0
+        self._senses[self.ants_on_goal, sense_idx['carry_food']] = 1
 
     def what_do_i_see(self):
         '''
