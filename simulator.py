@@ -12,6 +12,7 @@ import arena
 import time
 import signal
 import pickle
+from os import path
 from matplotlib import pyplot as plt
 from matplotlib import animation
 
@@ -28,10 +29,10 @@ scr_deposit_bonus = 0
 evo_death_thresh = -10
 evo_mutation_rate = 0.01
 evo_mut_val_var = 0.1
-evo_kill_period = 150
+evo_kill_period = 500
 
 
-data_save_period = 2000
+data_save_period = 10000
 data_file = 'brains.pickle'
 
 
@@ -63,6 +64,7 @@ class Simulator():
 
         np.random.seed(seed)
 
+
     def save_data(self):
         '''
         Saves brains evolved so far into a pickle file.
@@ -74,8 +76,10 @@ class Simulator():
         '''
         Load brains evolved so far from a pickle file.
         '''
-        with open(data_file, 'rb') as f:
-            self._agents.lin_dec_mat = pickle.load(f)
+        if path.exists(data_file):
+            with open(data_file, 'rb') as f:
+                self._agents.lin_dec_mat = pickle.load(f)
+            print('Loaded brain data from {}'.format(data_file))
 
     def _gen_rand_pos(self, number, centre, std_dev):
         retval = np.tile(centre,
@@ -361,7 +365,7 @@ if __name__ == '__main__':
     # plt.close('all')
     print('Starting')
     max_steps = None
-    agent_no = 100
+    agent_no = 50
     test_arena = arena.Arena(size=(200, 200),
                              start_point=(100, 100),
                              goals=[(175, 175), (40, 140)],
@@ -377,13 +381,15 @@ if __name__ == '__main__':
                     agent_no=agent_no,
                     seed=15)
     sim._populate()
+    sim.load_data()
 
     start_time = time.time()
     scores = sim.run(score_history=True,
-                     figure=False)
-                     # animate=True)
+                     # figure=False)
+                     animate=True)
 
     print('{}s total, {}ms p/a'.format((time.time() - start_time), (time.time() - start_time) / max_steps / agent_no * 1000))
     # plt.figure()
     # plt.plot(np.linspace(0, 1, max_steps), scores)
     # plt.show()
+P
