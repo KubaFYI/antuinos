@@ -5,20 +5,41 @@ This module handles simulating life of the agents in the arena.
 '''
 
 # Imports
+import sys
 import numpy as np
 import ant
 import arena
 import time
+import signal
+import pickle
 from matplotlib import pyplot as plt
 from matplotlib import animation
 
 # Constants used in scoring runs
-scr_act_cost = 0.1
+scr_starting_score = 0
+scr_step_cost = 0.1
 scr_distance_mul = 5
 scr_distance_adj = 3
+scr_returning_mul = 3
 scr_food_pickup_bonus = 1
 scr_deposit_bonus = 0
 
+# Constants for evolution
+evo_death_thresh = -10
+evo_mutation_rate = 0.01
+evo_mut_val_var = 0.1
+evo_kill_period = 150
+
+
+data_save_period = 2000
+data_file = 'brains.pickle'
+
+
+def signal_handler(signal, frame):
+        print('Ctrl+C pressed - terminating simulation!')
+        sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
 
 class Simulator():
     '''
@@ -42,6 +63,20 @@ class Simulator():
 
         np.random.seed(seed)
 
+    def save_data(self):
+        '''
+        Saves brains evolved so far into a pickle file.
+        '''
+        with open(data_file, 'wb') as f:
+            pickle.dump(self._agents.lin_dec_mat, f)
+
+    def load_data(self):
+        '''
+        Load brains evolved so far from a pickle file.
+        '''
+        with open(data_file, 'rb') as f:
+            self._agents.lin_dec_mat = pickle.load(f)
+
     def _gen_rand_pos(self, number, centre, std_dev):
         retval = np.tile(centre,
                          (number, 1))
@@ -56,11 +91,8 @@ class Simulator():
         retval += (deviation2 + 0.5).astype(int)
         return retval
 
-    def _populate(self):
-        '''
-        Populates arena with agents around the starting point
-        '''
-        starting_positions = self._gen_rand_pos(self._agent_no,
+    def _gen_starting_pos(self, number):
+        starting_positions = self._gen_rand_pos(number,
                                                 self._arena.start_point,
                                                 arena.STRT_PNT_RD)
 
@@ -72,15 +104,22 @@ class Simulator():
                                                                     arena.STRT_PNT_RD)
             invalid_pos = np.logical_not(
                 self._arena.are_valid_positions(starting_positions))
+        return starting_positions
+
+    def _populate(self):
+        '''
+        Populates arena with agents around the starting point
+        '''
+        starting_positions = self._gen_starting_pos(self._agent_no)
 
         self._agents = ant.Ants(self._arena.narena,
                                 starting_positions,
                                 self._decision_mode)
 
         self._agents.set_decision_matrix(
-            np.random.rand(ant.decisions_dim, ant.senses_dim))
+            np.random.rand(self._agents.ant_no, ant.decisions_dim, ant.senses_dim))
 
-        self._scores = np.zeros(self._agent_no)
+        self._scores = scr_starting_score * np.ones(self._agent_no)
 
     def tile_coords(self, points):
         '''
@@ -100,10 +139,8 @@ class Simulator():
         Updates scores for all agents and returns the swarm's mean.
         '''
 
-        # Performing an action costs something
-        active_ants = np.logical_not(
-            self._agents._decisions[:, ant.Decision.DO_NOTHING.value] == 1)
-        self._scores[active_ants] -= scr_act_cost
+        # Just living costs something
+        self._scores -= scr_step_cost
 
         # For non-carrying ants being nearer food source is good
         carrying = self._agents._senses[:, ant.sense_idx['carry_food']] == 1
@@ -135,7 +172,7 @@ class Simulator():
             better_dists = home_distances > distances
             home_distances[better_dists] = distances[better_dists]
 
-        self._scores[carrying] += (scr_distance_mul /
+        self._scores[carrying] += (scr_distance_mul * scr_returning_mul /
                                    (np.maximum(home_distances[carrying], arena.GL_PNT_RD - 1) +
                                     scr_distance_adj))
 
@@ -171,8 +208,13 @@ class Simulator():
 
         self._step_number += 1
         mean_score = self._score()
+
+        if self._step_number % evo_kill_period == 0:
+            print('Step {}\tMean score: {}'.format(self._step_number, mean_score))
+            self.kill_and_spawn()
+        if self._step_number % data_save_period == 0:
+            self.save_data()
         return mean_score
-        # print('Mean score: {}'.format(mean_score))
 
     def _draw_still_on_axes(self):
         '''
@@ -226,17 +268,86 @@ class Simulator():
                 self._fig = plt.figure()
                 self._axes = plt.gca()
 
-            while self._step_number < self._max_steps:
-                if score_history:
-                    retval.append(self._step())
-                else:
-                    retval = self._step()
+            if self._max_steps is not None:
+                while self._step_number < self._max_steps:
+                    if score_history:
+                        retval.append(self._step())
+                    else:
+                        retval = self._step()
+            else:
+                while True:
+                    if score_history:
+                        retval.append(self._step())
+                    else:
+                        retval = self._step()
 
             if figure:
                 sim._draw_still_on_axes()
                 plt.show()
 
         return retval
+
+    def softmax(self, x):
+        '''
+        Compute softmax values for each sets of scores in x.
+        '''
+        e_x = np.exp(x - np.max(x))
+        return e_x / e_x.sum()
+
+    def crossover(self, arrays):
+        '''
+        Return array_like arrays created by crossing over randomly paired
+        elements of argument 'arrays'.
+        '''
+        retval = np.empty_like(arrays)
+        crossover_points = np.random.randint(0, arrays.shape[1], size=3)
+        shuffld_arrays = np.random.permutation(arrays)
+        prev_idx_range = 0
+        for idx, crossover_point in enumerate(crossover_points):
+            idx_range = int(idx * arrays.shape[0] / 3)
+            retval[prev_idx_range:idx_range] = np.concatenate((arrays[prev_idx_range:idx_range, :crossover_point],
+                                                               shuffld_arrays[prev_idx_range:idx_range, crossover_point:]),
+                                                              axis=1)
+            prev_idx_range = idx_range
+        return retval
+
+    def mutate(self, arrays):
+        '''
+        In-place mutate values of the provided individuals (gaussian)
+        '''
+        if arrays.shape[0] > 0:
+            arrays[...] *= (evo_mut_val_var * np.random.standard_normal(arrays.shape) + 1)
+
+    def kill_and_spawn(self):
+        '''
+        Kill any useless agents and spawn new ones based on the well performing
+        lot.
+        '''
+        sorted_idx = np.argsort(self._scores)
+        probs = self.softmax(self._scores)
+
+        # Randomly cross-over good performers
+        crossover_choice = np.random.random(self._agent_no) < probs
+
+        # And force cross-over for 4 best
+        crossover_choice[sorted_idx[-4:]] = True
+
+        # pdb.set_trace()
+        if crossover_choice.shape[0] > 0:
+            # Replace the worst lot with newly generated agents
+            worst_lot = sorted_idx[:np.sum(crossover_choice)]
+            # Set postitions around start point
+            self._agents._positions[worst_lot] = self._gen_starting_pos(worst_lot.shape[0])
+            # Set their scores
+            self._scores[worst_lot] = scr_starting_score
+            # Crate their brains from the ones chosen for crossover
+            self._agents.lin_dec_mat[worst_lot] = self.crossover(self._agents.lin_dec_mat[crossover_choice])
+
+        # Also, mutate a small number of individuals
+        mutants = np.random.random(self._agent_no) < evo_mutation_rate
+        self.mutate(self._agents.lin_dec_mat[mutants])
+
+        print('Crossed-over {}\t, mutated {}\t'.format(np.sum(crossover_choice), np.sum(mutants)))
 
 
 def enable_xkcd_mode():
@@ -249,29 +360,30 @@ def enable_xkcd_mode():
 if __name__ == '__main__':
     # plt.close('all')
     print('Starting')
-    max_steps = 250
-    agent_no = 30
-    test_arena = arena.Arena(size=(300, 300),
-                             start_point=(20, 20),
-                             goals=[(95, 75), (40, 87)],
+    max_steps = None
+    agent_no = 100
+    test_arena = arena.Arena(size=(200, 200),
+                             start_point=(100, 100),
+                             goals=[(175, 175), (40, 140)],
                              obstacles=(
-        [['rect', (20, 30), (30, 45)],
-         ['rect', (15, 15), (90, 20)],
-         ['circ', (50, 25), 15],
+        [['rect', (40, 40), (170, 70)],
+         ['rect', (25, 120), (75, 127)],
+         ['circ', (145, 170), 15],
          ['circ', (75, 75), 8]]))
     sim = Simulator(target_arena=test_arena,
                     decision_mode='linear',
                     # decision_mode='random',
                     max_steps=max_steps,
                     agent_no=agent_no,
-                    seed=7)
+                    seed=15)
     sim._populate()
 
     start_time = time.time()
     scores = sim.run(score_history=True,
-                     # figure=False)
-                     animate=True)
+                     figure=False)
+                     # animate=True)
 
+    print('{}s total, {}ms p/a'.format((time.time() - start_time), (time.time() - start_time) / max_steps / agent_no * 1000))
     # plt.figure()
     # plt.plot(np.linspace(0, 1, max_steps), scores)
     # plt.show()

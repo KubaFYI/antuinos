@@ -134,7 +134,6 @@ class Ants():
             len(start_positions), self._senses_dim).astype(default_dtype)
         self._decisions = np.empty((len(start_positions), self._decisions_dim),
                                    dtype=default_dtype)
-        self.scores = np.zeros(self.ant_no)
 
         if decision_mode is not None:
             self._decision_cb = eval('self.' + DECISION_FNCTN[decision_mode])
