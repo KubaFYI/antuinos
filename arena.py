@@ -20,13 +20,13 @@ class Arena():
     def __init__(self, size=(100, 100)):
         self.size = size
         self.dim = len(self.size)
-        self._goals = [size]
+        self.goals = [size]
         self.directions = np.array(np.concatenate(
             (np.identity(self.dim), -1 * np.identity(self.dim))))
 
-        for idx, goal in enumerate(self._goals):
+        for idx, goal in enumerate(self.goals):
             if goal == (-1, -1):
-                self._goals[idx] = size
+                self.goals[idx] = size
 
         # Constants
         self.GOAL_RADIUS = 10
@@ -53,7 +53,7 @@ class Arena():
         if self.dim == 2:
             circles = []
             # Goal circles
-            for goal in self._goals:
+            for goal in self.goals:
                 circles.append(plt.Circle(goal,
                                           radius=self.GOAL_RADIUS,
                                           fc=self.GOAL_COLOR))
@@ -62,7 +62,7 @@ class Arena():
 
         elif self.dim == 3:
             # Draw goals
-            for goal in self._goals:
+            for goal in self.goals:
                 ret = self.draw_sphere(axes, centre=goal)
 
             # Make sure things look right

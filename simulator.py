@@ -22,30 +22,30 @@ import pdb
 
 class Simulator():
     def __init__(self, target_arena, decision_mode, max_steps, agent_no, seed=None):
-        self._arena = target_arena
-        self._agents = []
+        self.arena = target_arena
+        self.agents = []
 
-        self._decision_mode = decision_mode
-        self._agent_no = agent_no
-        self._max_steps = max_steps
+        self.decision_mode = decision_mode
+        self.agent_no = agent_no
+        self.max_steps = max_steps
 
-        self._step_number = 0
-        self._fig = None
-        self._axes = None
-        self._anim = None
+        self.step_number = 0
+        self.fig = None
+        self.axes = None
+        self.anim = None
 
-        self._scores = None
+        self.scores = None
 
         # 'Physics' constants
-        self._velocity = 0.2
+        self.velocity = 0.2
 
         # Constants used in scoring runs
-        self._scr_starting_score = 0
-        self._scr_movement_cost = 0.1
-        self._scr_signal_cost = 10
-        self._scr_energy_rad = 5
-        self._scr_energy_max_per_step = 5
-        self._scr_energy_adj = 5
+        self.scr_starting_score = 0
+        self.scr_movement_cost = 0.1
+        self.scr_signal_cost = 10
+        self.scr_energy_rad = 5
+        self.scr_energy_max_per_step = 5
+        self.scr_energy_adj = 5
 
         # Evolution constants
         self.evo_mut_rate = 0.01
@@ -70,8 +70,8 @@ class Simulator():
         Saves brains evolved so far into a pickle file.
         '''
 
-        with open('{}_{}.pickle'.format(self.data_file, self._step_number), 'wb') as f:
-            pickle.dump(self._agents.lin_dec_mat, f)
+        with open('{}_{}.pickle'.format(self.data_file, self.step_number), 'wb') as f:
+            pickle.dump(self.agents.lin_dec_mat, f)
 
     def load_data(self):
         '''
@@ -79,7 +79,7 @@ class Simulator():
         '''
         if path.exists(self.data_file + '.pickle'):
             with open(self.data_file, 'rb') as f:
-                self._agents.lin_dec_mat = pickle.load(f)
+                self.agents.lin_dec_mat = pickle.load(f)
             print('Loaded brain data from {}'.format(self.data_file))
 
     def _gen_rand_pos(self, arr=None):
@@ -88,22 +88,22 @@ class Simulator():
         in given array.
         '''
         if arr.shape[0] != 0:
-            arr[...] = np.random.random([arr.shape[0], self._arena.dim])
-            arr[...] *= np.array(self._arena.size)
+            arr[...] = np.random.random([arr.shape[0], self.arena.dim])
+            arr[...] *= np.array(self.arena.size)
 
     def _populate(self):
         '''
         Populates arena with agents.
         '''
-        self._agents = ant.Ants(self._arena,
-                                self._agent_no,
-                                self._decision_mode)
-        self._gen_rand_pos(self._agents._positions)
+        self.agents = ant.Ants(self.arena,
+                                self.agent_no,
+                                self.decision_mode)
+        self.gen_rand_pos(self.agents.positions)
 
-        self._agents.set_decision_matrix(
-            np.random.rand(self._agents.ant_no, self._agents._actions_dim, self._agents._senses_dim))
+        self.agents.set_decision_matrix(
+            np.random.rand(self.agents.ant_no, self.agents.actions_dim, self.agents.senses_dim))
 
-        self._scores = self._scr_starting_score * np.ones(self._agent_no)
+        self.scores = self.scr_starting_score * np.ones(self.agent_no)
 
     def tile_coords(self, points):
         '''
@@ -111,18 +111,18 @@ class Simulator():
         was on a torus.
         '''
         tiled_points = np.array(points, ndmin=2)
-        if len(self._arena.size) == 2:
-            for offset in self._arena.directions:
-                offset_points = (np.array(self._arena._goals.copy()) +
-                                 np.array([offset[0] * self._arena.size[0],
-                                           offset[1] * self._arena.size[1]]))
+        if len(self.arena.size) == 2:
+            for offset in self.arena.directions:
+                offset_points = (np.array(self.arena.goals.copy()) +
+                                 np.array([offset[0] * self.arena.size[0],
+                                           offset[1] * self.arena.size[1]]))
                 np.concatenate((tiled_points, offset_points))
-        elif len(self._arena.size) == 3:
-            for offset in self._arena.directions:
-                offset_points = (np.array(self._arena._goals.copy()) +
-                                 np.array([offset[0] * self._arena.size[0],
-                                           offset[1] * self._arena.size[1],
-                                           offset[2] * self._arena.size[2]]))
+        elif len(self.arena.size) == 3:
+            for offset in self.arena.directions:
+                offset_points = (np.array(self.arena.goals.copy()) +
+                                 np.array([offset[0] * self.arena.size[0],
+                                           offset[1] * self.arena.size[1],
+                                           offset[2] * self.arena.size[2]]))
                 np.concatenate((tiled_points, offset_points))
         return tiled_points
 
@@ -132,48 +132,48 @@ class Simulator():
         '''
 
         # Action Costs
-        self._scores[np.sum(self._agents._actions[:, :self._arena.directions.shape[0]]) == 1.] -= self._scr_movement_cost
-        self._scores[self._agents._actions[:, self._agents._action_signal_idx] == 1.] -= self._scr_signal_cost
+        self.scores[np.sum(self.agents.actions[:, :self.arena.directions.shape[0]]) == 1.] -= self.scr_movement_cost
+        self.scores[self.agents.actions[:, self.agents.action_signal_idx] == 1.] -= self.scr_signal_cost
 
         # Make sure we calculate the right distanes given we are on a torus
-        tiled_goals = self.tile_coords(self._arena._goals)
+        tiled_goals = self.tile_coords(self.arena.goals)
 
-        smallest_dist = np.ones(self._agents.ant_no) * np.max(self._arena.size)
+        smallest_dist = np.ones(self.agents.ant_no) * np.max(self.arena.size)
         for goal in tiled_goals:
-            dist = np.linalg.norm(self._agents._positions - goal,
+            dist = np.linalg.norm(self.agents.positions - goal,
                                        ord=2, axis=1)
             better_dists = smallest_dist > dist
             smallest_dist[better_dists] = dist[better_dists]
 
-        taking_energy = smallest_dist <= self._scr_energy_rad
-        self._scores[taking_energy] += ((self._scr_energy_max_per_step * (self._scr_energy_adj + self._arena.GOAL_RADIUS)) /
-                                       (np.maximum(smallest_dist[taking_energy], self._arena.GOAL_RADIUS) +
-                                        self._scr_energy_adj))
-        return np.mean(self._scores)
+        taking_energy = smallest_dist <= self.scr_energy_rad
+        self.scores[taking_energy] += ((self.scr_energy_max_per_step * (self.scr_energy_adj + self.arena.GOAL_RADIUS)) /
+                                       (np.maximum(smallest_dist[taking_energy], self.arena.GOAL_RADIUS) +
+                                        self.scr_energy_adj))
+        return np.mean(self.scores)
 
     def _step(self):
         '''
         Execute one step of the simulaton.
         '''
-        self._agents.sense()
-        self._agents.decide()
+        self.agents.sense()
+        self.agents.decide()
 
-        new_pos = np.copy(self._agents._positions)
-        for idx, direction in enumerate(self._arena.directions):
-            self._agents._positions[np.argwhere(self._agents._actions[:, idx])] += self._velocity * direction
+        new_pos = np.copy(self.agents.positions)
+        for idx, direction in enumerate(self.arena.directions):
+            self.agents.positions[np.argwhere(self.agents.actions[:, idx])] += self.velocity * direction
 
         # Wrap around edges
-        self._agents._positions %= self._arena.size
+        self.agents.positions %= self.arena.size
 
-        self._step_number += 1
-        mean_score = self._score()
+        self.step_number += 1
+        mean_score = self.score()
 
         self.kill_and_spawn()
 
-        if self._step_number % self.report_period == 0:
-            print('Step {}\tMean score: {}'.format(self._step_number, mean_score))
+        if self.step_number % self.report_period == 0:
+            print('Step {}\tMean score: {}'.format(self.step_number, mean_score))
             self.kill_and_spawn()
-        if self._step_number % self.data_save_period == 0:
+        if self.step_number % self.data_save_period == 0:
             self.save_data()
 
         return mean_score
@@ -183,16 +183,16 @@ class Simulator():
         Draws the graphical representation of the arena and the agents on the
         provided axis.
         '''
-        self._axes.clear()
-        self._arena.figurize_arena(self._axes)
-        if self._arena.dim == 2:
-            self._axes.scatter(self._agents._positions[:, 0],
-                               self._agents._positions[:, 1],
+        self.axes.clear()
+        self.arena.figurize_arena(self.axes)
+        if self.arena.dim == 2:
+            self.axes.scatter(self.agents.positions[:, 0],
+                               self.agents.positions[:, 1],
                                marker='o', color='blue', zorder=20)
-        elif self._arena.dim == 3:
-            self._axes.plot(self._agents._positions[:, 0],
-                                 self._agents._positions[:, 1],
-                                 self._agents._positions[:, 2],
+        elif self.arena.dim == 3:
+            self.axes.plot(self.agents.positions[:, 0],
+                                 self.agents.positions[:, 1],
+                                 self.agents.positions[:, 2],
                                  'bo', color='blue', zorder=20)
 
     def _setup_anim(self):
@@ -200,89 +200,89 @@ class Simulator():
         Draws the graphical representation of the arena and the agents on the
         provided axis.
         '''
-        self._arena.figurize_arena(self._axes)
+        self.arena.figurize_arena(self.axes)
 
-        if self._arena.dim == 2:
-            self._moving_bits, = self._axes.scatter([], [], marker='o', 
+        if self.arena.dim == 2:
+            self.moving_bits, = self.axes.scatter([], [], marker='o', 
                                                     color='blue',
                                                     zorder=20)
-        elif self._arena.dim == 3:
-            self._moving_bits, = self._axes.plot([], [], [],
+        elif self.arena.dim == 3:
+            self.moving_bits, = self.axes.plot([], [], [],
                                  'bo', color='blue', zorder=20)
-            # self._moving_bits = None
-            # for agent in self._agents._positions:
-            #     self._arena.draw_sphere(self._axes, centre=agent, radius=2, color='blue', transparency=1.)
+            # self.moving_bits = None
+            # for agent in self.agents.positions:
+            #     self.arena.draw_sphere(self.axes, centre=agent, radius=2, color='blue', transparency=1.)
         self.anim_counter = 0
-        return self._moving_bits,
+        return self.moving_bits,
 
     def _animate(self, i, ax):
-        if self._step_number < i:
-            self._step()
-        if self._arena.dim == 2:
-            self._moving_bits.set_data(self._agents._positions[:, 0],
-                                       self._agents._positions[:, 1])
-        elif self._arena.dim == 3:
+        if self.step_number < i:
+            self.step()
+        if self.arena.dim == 2:
+            self.moving_bits.set_data(self.agents.positions[:, 0],
+                                       self.agents.positions[:, 1])
+        elif self.arena.dim == 3:
             if self.anim_rot_enabled:
                 azim = self.anim_base_azim + np.abs(((self.anim_rot_speed * i) % self.anim_rot_period) - self.anim_rot_period / 2)
                 ax.view_init(elev=30, azim=azim)
-            self._moving_bits.set_data(self._agents._positions[:, 0],
-                                       self._agents._positions[:, 1])
-            self._moving_bits.set_3d_properties(self._agents._positions[:, 2])
+            self.moving_bits.set_data(self.agents.positions[:, 0],
+                                       self.agents.positions[:, 1])
+            self.moving_bits.set_3d_properties(self.agents.positions[:, 2])
             # ax.clear()
-            # for agent in self._agents._positions:
-            #     self._arena.draw_sphere(ax, centre=agent, radius=5, color='blue', transparency=1.)
+            # for agent in self.agents.positions:
+            #     self.arena.draw_sphere(ax, centre=agent, radius=5, color='blue', transparency=1.)
             # pass
         self.anim_counter += 1
-        return self._moving_bits,
+        return self.moving_bits,
 
-    def run(self, score_history=False, figure=False, animate=False):
+    def run(self, history=False, figure=False, animate=False):
         plt.close('all')
-        if score_history:
+        if history:
             retval = []
 
         if animate:
             retval = None
-            self._fig = plt.figure()
-            if self._arena.dim == 2:
-                self._axes = plt.gca()
-            elif self._arena.dim == 3:
-                self._axes = p3.Axes3D(self._fig)
-                # self._axes = self._fig.add_subplot(111, projection='3d')
+            self.fig = plt.figure()
+            if self.arena.dim == 2:
+                self.axes = plt.gca()
+            elif self.arena.dim == 3:
+                self.axes = p3.Axes3D(self.fig)
+                # self.axes = self.fig.add_subplot(111, projection='3d')
 
-            self._axes.view_init(dist=8, elev=30, azim=30)
-            self._axes.set_proj_type('persp')
+            self.axes.view_init(dist=8, elev=30, azim=30)
+            self.axes.set_proj_type('persp')
 
-            self._anim = animation.FuncAnimation(self._fig, self._animate,
-                                                 init_func=self._setup_anim,
-                                                 frames=self._max_steps,
+            self.anim = animation.FuncAnimation(self.fig, self.animate,
+                                                 init_func=self.setup_anim,
+                                                 frames=self.max_steps,
                                                  interval=20,
-                                                 fargs=(self._axes,),
+                                                 fargs=(self.axes,),
                                                  repeat=False,
                                                  blit=(not self.anim_rot_enabled))
             plt.show()
         else:
             if figure:
-                self._fig = plt.figure()
-                if self._arena.dim == 2:
-                    self._axes = plt.gca()
-                elif self._arena.dim == 3:
-                    self._axes = self._fig.add_subplot(111, projection='3d')
+                self.fig = plt.figure()
+                if self.arena.dim == 2:
+                    self.axes = plt.gca()
+                elif self.arena.dim == 3:
+                    self.axes = self.fig.add_subplot(111, projection='3d')
 
-            if self._max_steps is not None:
-                while self._step_number < self._max_steps:
-                    if score_history:
-                        retval.append(self._step())
+            if self.max_steps is not None:
+                while self.step_number < self.max_steps:
+                    if history:
+                        retval.append(self.step())
                     else:
-                        retval = self._step()
+                        retval = self.step()
             else:
                 while True:
-                    if score_history:
-                        retval.append(self._step())
+                    if history:
+                        retval.append(self.step())
                     else:
-                        retval = self._step()
+                        retval = self.step()
 
             if figure:
-                sim._draw_still_on_axes()
+                sim.draw_still_on_axes()
                 plt.show()
 
         return retval
@@ -323,11 +323,11 @@ class Simulator():
         Kill any useless agents and spawn new ones based on the well performing
         lot.
         '''
-        sorted_idx = np.argsort(self._scores)
-        probs = self.softmax(self._scores)
+        sorted_idx = np.argsort(self.scores)
+        probs = self.softmax(self.scores)
 
         # Randomly cross-over good performers
-        crossover_choice = np.random.random(self._agent_no) < probs
+        crossover_choice = np.random.random(self.agent_no) < probs
 
         # And force cross-over for 4 best
         crossover_choice[sorted_idx[-4:]] = True
@@ -336,15 +336,15 @@ class Simulator():
             # Replace the worst lot with newly generated agents
             worst_lot = sorted_idx[:np.sum(crossover_choice)]
             # Set postitions around start point
-            self._gen_rand_pos(self._agents._positions[worst_lot])
+            self.gen_rand_pos(self.agents.positions[worst_lot])
             # Set their scores
-            self._scores[worst_lot] = self._scr_starting_score
+            self.scores[worst_lot] = self.scr_starting_score
             # Crate their brains from the ones chosen for crossover
-            self._agents.lin_dec_mat[worst_lot] = self.crossover(self._agents.lin_dec_mat[crossover_choice])
+            self.agents.lin_dec_mat[worst_lot] = self.crossover(self.agents.lin_dec_mat[crossover_choice])
 
         # Also, mutate a small number of individuals
-        mutants = np.random.random(self._agent_no) < self.evo_mut_rate
-        self.mutate(self._agents.lin_dec_mat[mutants])
+        mutants = np.random.random(self.agent_no) < self.evo_mut_rate
+        self.mutate(self.agents.lin_dec_mat[mutants])
 
         # print('Crossed-over {}\t, mutated {}\t'.format(np.sum(crossover_choice), np.sum(mutants)))
         pass
@@ -370,11 +370,11 @@ if __name__ == '__main__':
                     max_steps=max_steps,
                     agent_no=agent_no,
                     seed=15)
-    sim._populate()
+    sim.populate()
     sim.load_data()
 
     start_time = time.time()
-    scores = sim.run(score_history=True,
+    scores = sim.run(history=True,
                      # figure=True)
                      animate=True)
 
