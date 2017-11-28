@@ -38,11 +38,11 @@ class Ants():
         self.action_signal_idx = self.arena.directions.shape[0] + 0
         self.action_do_nothing_idx = self.arena.directions.shape[0] + 1
 
-        self.positions = np.empty((self.ant_no, self.arena.dim),
+        self.positions = np.zeros((self.ant_no, self.arena.dim),
                                    dtype=default_dtype)
-        self.senses = np.empty((self.ant_no, self.senses_dim),
+        self.senses = np.zeros((self.ant_no, self.senses_dim),
                                 dtype=default_dtype)
-        self.actions = np.empty((self.ant_no, self.actions_dim),
+        self.actions = np.zeros((self.ant_no, self.actions_dim),
                                    dtype=default_dtype)
 
         if decision_mode is not None:
@@ -56,9 +56,9 @@ class Ants():
         self.alive_no = 0
 
         self.signal_range = 100
-        self.distances = np.empty((self.ant_no, self.ant_no))
-        self.signals = np.empty((self.ant_no, self.arena.directions.shape[0]))
-        self.signalled = np.empty(self.ant_no)
+        self.distances = np.zeros((self.ant_no, self.ant_no))
+        self.signals = np.zeros((self.ant_no, self.arena.directions.shape[0]))
+        self.signalled = np.zeros(self.ant_no)
 
     def recompute_distances(self):
         '''
@@ -102,7 +102,8 @@ class Ants():
         '''
         Update sensory input.
         '''
-        self.senses[self.alive] = np.random.randint(0, 100, (self.alive_no, self.senses_dim))
+        # pdb.set_trace()
+        self.senses[self.alive] = np.random.randint(0, 1, (self.alive_no, self.senses_dim))
         self.recompute_distances()
         self.get_signal_input()
         self.senses[:, :self.arena.directions.shape[0]] = self.signals

@@ -18,6 +18,7 @@ from matplotlib.colors import ListedColormap
 # from mpl_toolkits.mplot3d import Axes3D
 import mpl_toolkits.mplot3d.axes3d as p3
 from matplotlib import animation
+import pdb
 
 class Simulator():
     def __init__(self, target_arena, decision_mode, max_steps, min_agent_no=50, max_agent_no=250, seed=None):
@@ -42,7 +43,7 @@ class Simulator():
         self.scr_starting_score = 10
         self.scr_movement_cost = 0.1
         self.scr_signal_cost = 0.001
-        self.scr_energy_rad = 5
+        self.scr_energy_rad = 200
         self.scr_energy_max_per_step = 5
         self.scr_energy_adj = 5
 
@@ -334,19 +335,21 @@ class Simulator():
             need_to_kill = sum(reproductors) - (self.max_agent_no - self.agents.alive_no)
             idx = 0
             while need_to_kill > 0:
-                if self.agents.alive[ranking[i]]:
-                    self.agents.alive[ranking[i]] = False
+                if self.agents.alive[ranking[idx]]:
+                    self.agents.alive[ranking[idx]] = False
                     self.agents.alive_no -= 1
                     need_to_kill -= 1
+                idx += 1
     
-            children = np.argwhere(np.logical_not(self.agents.alive))[:sum(reproductors)]
+            children = np.argwhere(np.logical_not(self.agents.alive))[:sum(reproductors)][:,0]
     
             # Resurect some of the dead as the children of the reproductors
             self.agents.alive[children] = True
+            self.agents.alive_no += children.shape[0]
             self.gen_rand_pos(self.agents.positions[children])
             self.agents.lin_dec_mat[children] = self.agents.lin_dec_mat[reproductors].copy()
             self.scores[children] = self.scr_starting_score
-            print('Reproduced {}'.format(sum(reproductors)))
+            # print('Reproduced {}'.format(sum(reproductors)))
 
 def enable_xkcd_mode():
     from matplotlib import patheffects
