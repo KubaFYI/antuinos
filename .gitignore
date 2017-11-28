@@ -99,3 +99,8 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+*.pickle
+*.mp4
+*.png
+test3d.py
