@@ -51,18 +51,20 @@ class Ants():
 
         self.lin_dec_mat = None
 
+        self.alive = None
+        self.alive_no = 0
+
     def sense(self):
         '''
         Update sensory input.
         '''
-        self.senses = np.random.randint(0, 100, self.senses.shape)
+        self.senses[self.alive] = np.random.randint(0, 100, (self.alive_no, self.senses_dim))
 
     def decide(self):
         '''
         Chooses an action to perform from available sensory information by
         invoking an appropriate callback.
         '''
-        self.sense()
         self.decision_cb()
 
     def decision_random(self):
@@ -86,13 +88,13 @@ class Ants():
         if len(self.lin_dec_mat.shape) > 2:
             # Each ant has it's own decision making brain
             decision_strenghts = np.empty((self.ant_no, self.actions_dim))
-            for i in range(self.ant_no):
+            for i in (idx for idx in range(self.ant_no) if self.alive[idx]):
                 decision_strenghts[i] = self.lin_dec_mat[i].dot(
                     self.senses[i])
         else:
-            decision_strenghts = self.lin_dec_mat.dot(self.senses.T).T
-        normalizers = np.max(decision_strenghts, axis=1)
-        self.actions = np.expand_dims(normalizers, 1) == decision_strenghts
+            decision_strenghts[self.alive] = self.lin_dec_mat.dot(self.senses[self.alive].T).T
+        normalizers = np.max(decision_strenghts[self.alive], axis=1)
+        self.actions[self.alive] = np.expand_dims(normalizers, 1) == decision_strenghts[self.alive]
 
     def set_decision_matrix(self, decision_matrix):
         '''
@@ -116,3 +118,7 @@ class Ants():
         Return the number of agents present.
         '''
         return self.positions.shape[0]
+
+    def reset_alive(self, new_alive):
+        self.alive = new_alive
+        self.alive_no = sum(self.alive)

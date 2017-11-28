@@ -18,15 +18,14 @@ from matplotlib.colors import ListedColormap
 # from mpl_toolkits.mplot3d import Axes3D
 import mpl_toolkits.mplot3d.axes3d as p3
 from matplotlib import animation
-import pdb
 
 class Simulator():
-    def __init__(self, target_arena, decision_mode, max_steps, agent_no, seed=None):
+    def __init__(self, target_arena, decision_mode, max_steps, min_agent_no=50, max_agent_no=250, seed=None):
         self.arena = target_arena
-        self.agents = []
 
         self.decision_mode = decision_mode
-        self.agent_no = agent_no
+        self.min_agent_no = min_agent_no
+        self.max_agent_no = max_agent_no
         self.max_steps = max_steps
 
         self.step_number = 0
@@ -34,15 +33,13 @@ class Simulator():
         self.axes = None
         self.anim = None
 
-        self.scores = None
-
         # 'Physics' constants
         self.velocity = 0.2
 
         # Constants used in scoring runs
-        self.scr_starting_score = 0
+        self.scr_starting_score = 10
         self.scr_movement_cost = 0.1
-        self.scr_signal_cost = 10
+        self.scr_signal_cost = 0.001
         self.scr_energy_rad = 5
         self.scr_energy_max_per_step = 5
         self.scr_energy_adj = 5
@@ -50,7 +47,9 @@ class Simulator():
         # Evolution constants
         self.evo_mut_rate = 0.01
         self.evo_mut_val_var = 0.05
-
+        self.evo_mut_gene_prob = 0.05
+        self.evo_repr_thresh = 10.
+        self.evo_repr_cost = 8.
 
         self.report_period = 1.5e3
         self.data_save_period = 1e5
@@ -63,6 +62,18 @@ class Simulator():
         self.anim_azim_rot_dir = 1
 
         np.random.seed(seed)
+
+        # Initialize things
+        self.agents = ant.Ants(self.arena,
+                                self.max_agent_no,
+                                self.decision_mode)
+        self.gen_rand_pos(self.agents.positions)
+
+        self.agents.set_decision_matrix(
+            np.random.rand(self.agents.ant_no, self.agents.actions_dim, self.agents.senses_dim))
+
+        self.scores = self.scr_starting_score * np.ones(self.max_agent_no)
+        self.agents.reset_alive(np.ones_like(self.scores, dtype=np.bool))
 
 
     def save_data(self):
@@ -82,7 +93,7 @@ class Simulator():
                 self.agents.lin_dec_mat = pickle.load(f)
             print('Loaded brain data from {}'.format(self.data_file))
 
-    def _gen_rand_pos(self, arr=None):
+    def gen_rand_pos(self, arr=None):
         '''
         In place generate a number of random positions in the arena and put it
         in given array.
@@ -90,20 +101,6 @@ class Simulator():
         if arr.shape[0] != 0:
             arr[...] = np.random.random([arr.shape[0], self.arena.dim])
             arr[...] *= np.array(self.arena.size)
-
-    def _populate(self):
-        '''
-        Populates arena with agents.
-        '''
-        self.agents = ant.Ants(self.arena,
-                                self.agent_no,
-                                self.decision_mode)
-        self.gen_rand_pos(self.agents.positions)
-
-        self.agents.set_decision_matrix(
-            np.random.rand(self.agents.ant_no, self.agents.actions_dim, self.agents.senses_dim))
-
-        self.scores = self.scr_starting_score * np.ones(self.agent_no)
 
     def tile_coords(self, points):
         '''
@@ -126,14 +123,16 @@ class Simulator():
                 np.concatenate((tiled_points, offset_points))
         return tiled_points
 
-    def _score(self):
+    def score(self):
         '''
         Updates scores for all agents and returns the swarm's mean.
         '''
 
         # Action Costs
-        self.scores[np.sum(self.agents.actions[:, :self.arena.directions.shape[0]]) == 1.] -= self.scr_movement_cost
-        self.scores[self.agents.actions[:, self.agents.action_signal_idx] == 1.] -= self.scr_signal_cost
+        moved = np.logical_and(self.agents.alive, np.sum(self.agents.actions[:, :self.arena.directions.shape[0]]) == 1.)
+        signalled = np.logical_and(self.agents.alive, self.agents.actions[:, self.agents.action_signal_idx] == 1.)
+        self.scores[moved] -= self.scr_movement_cost
+        self.scores[signalled] -= self.scr_signal_cost
 
         # Make sure we calculate the right distanes given we are on a torus
         tiled_goals = self.tile_coords(self.arena.goals)
@@ -145,13 +144,13 @@ class Simulator():
             better_dists = smallest_dist > dist
             smallest_dist[better_dists] = dist[better_dists]
 
-        taking_energy = smallest_dist <= self.scr_energy_rad
+        taking_energy = np.logical_and(self.agents.alive, smallest_dist <= self.scr_energy_rad)
         self.scores[taking_energy] += ((self.scr_energy_max_per_step * (self.scr_energy_adj + self.arena.GOAL_RADIUS)) /
                                        (np.maximum(smallest_dist[taking_energy], self.arena.GOAL_RADIUS) +
                                         self.scr_energy_adj))
-        return np.mean(self.scores)
+        return np.mean(self.scores[self.agents.alive])
 
-    def _step(self):
+    def step(self):
         '''
         Execute one step of the simulaton.
         '''
@@ -178,7 +177,7 @@ class Simulator():
 
         return mean_score
 
-    def _draw_still_on_axes(self):
+    def draw_still_on_axes(self):
         '''
         Draws the graphical representation of the arena and the agents on the
         provided axis.
@@ -195,7 +194,7 @@ class Simulator():
                                  self.agents.positions[:, 2],
                                  'bo', color='blue', zorder=20)
 
-    def _setup_anim(self):
+    def setup_anim(self):
         '''
         Draws the graphical representation of the arena and the agents on the
         provided axis.
@@ -215,19 +214,19 @@ class Simulator():
         self.anim_counter = 0
         return self.moving_bits,
 
-    def _animate(self, i, ax):
+    def animate(self, i, ax):
         if self.step_number < i:
             self.step()
         if self.arena.dim == 2:
-            self.moving_bits.set_data(self.agents.positions[:, 0],
-                                       self.agents.positions[:, 1])
+            self.moving_bits.set_data(self.agents.positions[self.agents.alive, 0],
+                                       self.agents.positions[self.agents.alive, 1])
         elif self.arena.dim == 3:
             if self.anim_rot_enabled:
                 azim = self.anim_base_azim + np.abs(((self.anim_rot_speed * i) % self.anim_rot_period) - self.anim_rot_period / 2)
                 ax.view_init(elev=30, azim=azim)
-            self.moving_bits.set_data(self.agents.positions[:, 0],
-                                       self.agents.positions[:, 1])
-            self.moving_bits.set_3d_properties(self.agents.positions[:, 2])
+            self.moving_bits.set_data(self.agents.positions[self.agents.alive, 0],
+                                       self.agents.positions[self.agents.alive, 1])
+            self.moving_bits.set_3d_properties(self.agents.positions[self.agents.alive, 2])
             # ax.clear()
             # for agent in self.agents.positions:
             #     self.arena.draw_sphere(ax, centre=agent, radius=5, color='blue', transparency=1.)
@@ -316,39 +315,42 @@ class Simulator():
         In-place mutate values of the provided individuals (gaussian)
         '''
         if arr.shape[0] != 0:
-            arr[...] *= (self.evo_mut_val_var * np.random.standard_normal(arr.shape) + 1)
+            genes_mutated = np.random.random(arr.shape) < self.evo_mut_gene_prob
+            if genes_mutated:
+                arr[genes_mutated] *= (self.evo_mut_val_var * np.random.standard_normal(sum(genes_mutated)) + 1)
 
     def kill_and_spawn(self):
         '''
-        Kill any useless agents and spawn new ones based on the well performing
-        lot.
+        Kill and spawn new agents as required
         '''
-        sorted_idx = np.argsort(self.scores)
-        probs = self.softmax(self.scores)
+        # Kill off agents first.
+        self.agents.reset_alive(self.scores > 0)
 
-        # Randomly cross-over good performers
-        crossover_choice = np.random.random(self.agent_no) < probs
+        # Get ranking of the scores (starting with the worst)
+        ranking = np.argsort(self.scores[self.agents.alive])
 
-        # And force cross-over for 4 best
-        crossover_choice[sorted_idx[-4:]] = True
-
-        if crossover_choice.shape[0] > 0:
-            # Replace the worst lot with newly generated agents
-            worst_lot = sorted_idx[:np.sum(crossover_choice)]
-            # Set postitions around start point
-            self.gen_rand_pos(self.agents.positions[worst_lot])
-            # Set their scores
-            self.scores[worst_lot] = self.scr_starting_score
-            # Crate their brains from the ones chosen for crossover
-            self.agents.lin_dec_mat[worst_lot] = self.crossover(self.agents.lin_dec_mat[crossover_choice])
-
-        # Also, mutate a small number of individuals
-        mutants = np.random.random(self.agent_no) < self.evo_mut_rate
-        self.mutate(self.agents.lin_dec_mat[mutants])
-
-        # print('Crossed-over {}\t, mutated {}\t'.format(np.sum(crossover_choice), np.sum(mutants)))
-        pass
-
+        # Now reproduce the ones which are able to
+        reproductors = self.scores > self.evo_repr_thresh
+        if sum(reproductors) > 0:
+            self.scores[reproductors] -= self.evo_repr_cost
+    
+            # If there is no space for the new agents so kill off some bad ones
+            need_to_kill = sum(reproductors) - (self.max_agent_no - self.agents.alive_no)
+            idx = 0
+            while need_to_kill > 0:
+                if self.agents.alive[ranking[i]]:
+                    self.agents.alive[ranking[i]] = False
+                    self.agents.alive_no -= 1
+                    need_to_kill -= 1
+    
+            children = np.argwhere(np.logical_not(self.agents.alive))[:sum(reproductors)]
+    
+            # Resurect some of the dead as the children of the reproductors
+            self.agents.alive[children] = True
+            self.gen_rand_pos(self.agents.positions[children])
+            self.agents.lin_dec_mat[children] = self.agents.lin_dec_mat[reproductors].copy()
+            self.scores[children] = self.scr_starting_score
+            print('Reproduced {}'.format(sum(reproductors)))
 
 def enable_xkcd_mode():
     from matplotlib import patheffects
@@ -362,15 +364,18 @@ if __name__ == '__main__':
     # enable_xkcd_mode()
     print('Starting')
     max_steps = 1000
-    agent_no = 500
-    test_arena = arena.Arena(size=(200, 200, 200))
+    min_agent_no = 50
+    max_agent_no = 250
+    test_arena = arena.Arena(size=(300, 300, 300))
+
+
     sim = Simulator(target_arena=test_arena,
                     decision_mode='linear',
                     # decision_mode='random',
                     max_steps=max_steps,
-                    agent_no=agent_no,
+                    min_agent_no=min_agent_no,
+                    max_agent_no=max_agent_no,
                     seed=15)
-    sim.populate()
     sim.load_data()
 
     start_time = time.time()
@@ -378,7 +383,7 @@ if __name__ == '__main__':
                      # figure=True)
                      animate=True)
 
-    print('{}s total, {}ms p/a'.format((time.time() - start_time), (time.time() - start_time) / max_steps / agent_no * 1000))
+    print('{}s total, {}ms p/a'.format((time.time() - start_time), (time.time() - start_time) / max_steps / max_agent_no * 1000))
     # plt.figure()
     # plt.plot(np.linspace(0, 1, max_steps), scores)
     # plt.show()
