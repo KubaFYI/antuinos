@@ -313,8 +313,9 @@ class Simulator():
         '''
         if arr.shape[0] != 0:
             genes_mutated = np.random.random(arr.shape) < self.evo_mut_gene_prob
-            if genes_mutated:
-                arr[genes_mutated] *= (self.evo_mut_val_var * np.random.standard_normal(sum(genes_mutated)) + 1)
+            if genes_mutated.any():
+                # pdb.set_trace()
+                arr[genes_mutated] *= (self.evo_mut_val_var * np.random.standard_normal(genes_mutated.shape)[genes_mutated] + 1)
 
     def kill_and_spawn(self):
         '''
@@ -348,8 +349,22 @@ class Simulator():
             self.agents.alive_no += children.shape[0]
             self.gen_rand_pos(self.agents.positions[children])
             self.agents.lin_dec_mat[children] = self.agents.lin_dec_mat[reproductors].copy()
+            self.mutate(self.agents.lin_dec_mat[children])
             self.scores[children] = self.scr_starting_score
             # print('Reproduced {}'.format(sum(reproductors)))
+
+        # Make sure we've got enought agents left
+        if self.agents.alive_no < self.min_agent_no:
+            # If not make more from random individuals
+            add_agents = np.argwhere(np.logical_not(self.agents.alive))[:self.min_agent_no-self.agents.alive_no]
+            self.agents.alive[add_agents] = True
+            self.agents.alive_no += add_agents.shape[0]
+            self.gen_rand_pos(self.agents.positions[add_agents])
+            parents = np.argwhere(self.agents.alive)
+            parents = parents[np.random.randint(0, parents.size[0], add_agents.shape[0])]
+            self.agents.lin_dec_mat[add_agents] = self.agents.lin_dec_mat[parents].copy()
+            self.mutate(self.agents.lin_dec_mat[add_agents])
+            self.scores[add_agents] = self.scr_starting_score
 
 def enable_xkcd_mode():
     from matplotlib import patheffects
