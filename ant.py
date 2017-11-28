@@ -9,6 +9,7 @@ improvement.
 
 # Imports
 import numpy as np
+import pdb
 
 # Catalogue of decision-making functions
 DECISION_FNCTN = {'random': 'decision_random',
@@ -54,11 +55,57 @@ class Ants():
         self.alive = None
         self.alive_no = 0
 
+        self.signal_range = 100
+        self.distances = np.empty((self.ant_no, self.ant_no))
+        self.signals = np.empty((self.ant_no, self.arena.directions.shape[0]))
+        self.signalled = np.empty(self.ant_no)
+
+    def recompute_distances(self):
+        '''
+        Computes distances between each pair of alive agents.
+        '''
+        self.distances = np.zeros_like(self.distances)
+        upper_right = np.triu_indices_from(self.distances)
+        lower_left = np.tril_indices_from(self.distances)
+        xs = np.expand_dims(self.positions[:,0], 1)
+        x_dif = xs - xs.T
+        ys = np.expand_dims(self.positions[:,1], 1)
+        y_dif = ys - ys.T
+        if self.arena.dim == 2:
+            self.distances[upper_right] = np.sqrt(x_dif[upper_right]**2 +
+                                                  y_dif[upper_right]**2)
+        elif self.arena.dim == 3:
+            zs = np.expand_dims(self.positions[:,2], 1)
+            z_dif = zs - zs.T
+            self.distances[upper_right] = np.sqrt(x_dif[upper_right]**2 +
+                                                  y_dif[upper_right]**2 +
+                                                  z_dif[upper_right]**2)
+        self.distances[lower_left] += (self.distances.T)[lower_left]
+
+    def get_signal_input(self):
+        '''
+        Computes the signal reaching each agent.
+        '''
+        # self.signal_dir_mask = np.zeros_like(self.signal_dir_mask)
+        self.signals = np.zeros_like(self.signals)
+        signal_in_range_idx = np.argwhere(np.logical_and(self.signalled > 0, self.distances <= self.signal_range))
+        signal_in_range_idx = signal_in_range_idx[signal_in_range_idx[:,0]!=signal_in_range_idx[:,1]]
+        if len(signal_in_range_idx) > 0:
+            for dir_idx, dire in enumerate(self.arena.directions):
+                axis = np.argwhere(dire != 0)[0][0]
+                sign = 1 if dire[axis] > 0 else -1
+                emitters_at_direction_idx = signal_in_range_idx[(sign * self.positions[signal_in_range_idx[:, 0]][:, axis] > np.abs(self.positions[signal_in_range_idx[:, 1]][:, axis]))]
+                for transfer in emitters_at_direction_idx:
+                    self.signals[transfer[0], dir_idx] += self.signalled[transfer[1]] / self.distances[transfer[0], transfer[1]]
+
     def sense(self):
         '''
         Update sensory input.
         '''
         self.senses[self.alive] = np.random.randint(0, 100, (self.alive_no, self.senses_dim))
+        self.recompute_distances()
+        self.get_signal_input()
+        self.senses[:, :self.arena.directions.shape[0]] = self.signals
 
     def decide(self):
         '''
@@ -66,6 +113,8 @@ class Ants():
         invoking an appropriate callback.
         '''
         self.decision_cb()
+        self.signalled = np.zeros_like(self.signalled)
+        self.signalled[self.alive] = self.actions[self.alive, self.action_signal_idx]
 
     def decision_random(self):
         '''

@@ -33,6 +33,8 @@ class Simulator():
         self.axes = None
         self.anim = None
 
+        self.start_time = None
+
         # 'Physics' constants
         self.velocity = 0.2
 
@@ -130,7 +132,7 @@ class Simulator():
 
         # Action Costs
         moved = np.logical_and(self.agents.alive, np.sum(self.agents.actions[:, :self.arena.directions.shape[0]]) == 1.)
-        signalled = np.logical_and(self.agents.alive, self.agents.actions[:, self.agents.action_signal_idx] == 1.)
+        signalled = self.agents.signalled > 0
         self.scores[moved] -= self.scr_movement_cost
         self.scores[signalled] -= self.scr_signal_cost
 
@@ -208,9 +210,6 @@ class Simulator():
         elif self.arena.dim == 3:
             self.moving_bits, = self.axes.plot([], [], [],
                                  'bo', color='blue', zorder=20)
-            # self.moving_bits = None
-            # for agent in self.agents.positions:
-            #     self.arena.draw_sphere(self.axes, centre=agent, radius=2, color='blue', transparency=1.)
         self.anim_counter = 0
         return self.moving_bits,
 
@@ -227,10 +226,6 @@ class Simulator():
             self.moving_bits.set_data(self.agents.positions[self.agents.alive, 0],
                                        self.agents.positions[self.agents.alive, 1])
             self.moving_bits.set_3d_properties(self.agents.positions[self.agents.alive, 2])
-            # ax.clear()
-            # for agent in self.agents.positions:
-            #     self.arena.draw_sphere(ax, centre=agent, radius=5, color='blue', transparency=1.)
-            # pass
         self.anim_counter += 1
         return self.moving_bits,
 
@@ -238,7 +233,7 @@ class Simulator():
         plt.close('all')
         if history:
             retval = []
-
+        self.start_time = time.time()
         if animate:
             retval = None
             self.fig = plt.figure()
@@ -279,7 +274,8 @@ class Simulator():
                         retval.append(self.step())
                     else:
                         retval = self.step()
-
+            print('Duration {}s ({}ms per step)'.format(time.time() - start_time, 
+                                                        (time.time() - start_time) * 1000 / self.max_steps))
             if figure:
                 sim.draw_still_on_axes()
                 plt.show()
@@ -358,14 +354,13 @@ def enable_xkcd_mode():
     plt.xkcd()
     rcParams['path.effects'] = [patheffects.withStroke(linewidth=0)]
 
-
 if __name__ == '__main__':
     # plt.close('all')
     # enable_xkcd_mode()
     print('Starting')
     max_steps = 1000
     min_agent_no = 50
-    max_agent_no = 250
+    max_agent_no = 100
     test_arena = arena.Arena(size=(300, 300, 300))
 
 
@@ -380,10 +375,10 @@ if __name__ == '__main__':
 
     start_time = time.time()
     scores = sim.run(history=True,
-                     # figure=True)
-                     animate=True)
+                     figure=True)
+                     # animate=True)
 
-    print('{}s total, {}ms p/a'.format((time.time() - start_time), (time.time() - start_time) / max_steps / max_agent_no * 1000))
+    # print('{}s total, {}ms p/a'.format((time.time() - start_time), (time.time() - start_time) / max_steps / max_agent_no * 1000))
     # plt.figure()
     # plt.plot(np.linspace(0, 1, max_steps), scores)
     # plt.show()
