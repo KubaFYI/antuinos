@@ -19,6 +19,7 @@ from matplotlib.colors import ListedColormap
 import mpl_toolkits.mplot3d.axes3d as p3
 from matplotlib import animation
 import pdb
+sys.path.append('/usr/local/cuda/lib64')
 
 class Simulator():
     def __init__(self, target_arena, decision_mode, max_steps, min_agent_no=50, max_agent_no=250, seed=None):
@@ -40,11 +41,11 @@ class Simulator():
         self.velocity = 0.2
 
         # Constants used in scoring runs
-        self.scr_starting_score = 10
-        self.scr_movement_cost = 0.1
-        self.scr_signal_cost = 0.001
-        self.scr_energy_rad = 200
-        self.scr_energy_max_per_step = 5
+        self.scr_starting_score = 2
+        self.scr_movement_cost = 0.2
+        self.scr_signal_cost = 0.01
+        self.scr_energy_rad = 100
+        self.scr_energy_max_per_step = 0.5
         self.scr_energy_adj = 5
 
         # Evolution constants
@@ -54,15 +55,17 @@ class Simulator():
         self.evo_repr_thresh = 10.
         self.evo_repr_cost = 8.
 
-        self.report_period = 1.5e3
-        self.data_save_period = 1e5
-        self.data_file = 'brains'
+        self.report_period = 1.5e2
+        self.data_save_period = 1e4
+        self.goal_move_period = 5e3
+        self.data_file = 'brains_neuro'
         self.anim_rot_enabled = False
         self.anim_rot_speed = 0.1
         self.anim_rot_period = 100
         self.anim_base_azim = 30
         # self.anim_azim_dev = 30
         self.anim_azim_rot_dir = 1
+        self.writer = None
 
         np.random.seed(seed)
 
@@ -72,8 +75,13 @@ class Simulator():
                                 self.decision_mode)
         self.gen_rand_pos(self.agents.positions)
 
-        self.agents.set_decision_matrix(
-            np.random.rand(self.agents.ant_no, self.agents.actions_dim, self.agents.senses_dim))
+        # For use with a linear model
+        if self.decision_mode == 'linear':
+            self.agents.set_decision_matrix(
+            np.random.rand(self.agents.max_agents_no, self.agents.actions_dim, self.agents.senses_dim))
+        # # For use with a rnn
+        # self.agents.set_decision_matrix(
+        #     np.random.rand(self.agents.max_agents_no, self.agents.actions_dim, self.agents.senses_dim))
 
         self.scores = self.scr_starting_score * np.ones(self.max_agent_no)
         self.agents.reset_alive(np.ones_like(self.scores, dtype=np.bool))
@@ -91,10 +99,11 @@ class Simulator():
         '''
         Load brains evolved so far from a pickle file.
         '''
-        if path.exists(self.data_file + '.pickle'):
-            with open(self.data_file, 'rb') as f:
+        filename = self.data_file + '.pickle'
+        if path.exists(filename):
+            with open(filename, 'rb') as f:
                 self.agents.lin_dec_mat = pickle.load(f)
-            print('Loaded brain data from {}'.format(self.data_file))
+            print('Loaded brain data from {}'.format(filename))
 
     def gen_rand_pos(self, arr=None):
         '''
@@ -102,7 +111,7 @@ class Simulator():
         in given array.
         '''
         if arr.shape[0] != 0:
-            arr[...] = np.random.random([arr.shape[0], self.arena.dim])
+            arr[...] = np.random.random(arr.shape)
             arr[...] *= np.array(self.arena.size)
 
     def tile_coords(self, points):
@@ -140,7 +149,7 @@ class Simulator():
         # Make sure we calculate the right distanes given we are on a torus
         tiled_goals = self.tile_coords(self.arena.goals)
 
-        smallest_dist = np.ones(self.agents.ant_no) * np.max(self.arena.size)
+        smallest_dist = np.ones(self.agents.max_agents_no) * np.max(self.arena.size)
         for goal in tiled_goals:
             dist = np.linalg.norm(self.agents.positions - goal,
                                        ord=2, axis=1)
@@ -148,9 +157,12 @@ class Simulator():
             smallest_dist[better_dists] = dist[better_dists]
 
         taking_energy = np.logical_and(self.agents.alive, smallest_dist <= self.scr_energy_rad)
-        self.scores[taking_energy] += ((self.scr_energy_max_per_step * (self.scr_energy_adj + self.arena.GOAL_RADIUS)) /
+        self.agents.energy_intake = np.zeros_like(self.agents.energy_intake)
+        # pdb.set_trace()
+        self.agents.energy_intake[taking_energy] = ((self.scr_energy_max_per_step * (self.scr_energy_adj + self.arena.GOAL_RADIUS)) /
                                        (np.maximum(smallest_dist[taking_energy], self.arena.GOAL_RADIUS) +
                                         self.scr_energy_adj))
+        self.scores[taking_energy] += self.agents.energy_intake[taking_energy]
         return np.mean(self.scores[self.agents.alive])
 
     def step(self):
@@ -173,12 +185,19 @@ class Simulator():
         self.kill_and_spawn()
 
         if self.step_number % self.report_period == 0:
-            print('Step {}\tMean score: {}'.format(self.step_number, mean_score))
+            print('Step {}\tAlive agents {}\tMean score: {}'.format(self.step_number, self.agents.alive_no, mean_score))
             self.kill_and_spawn()
         if self.step_number % self.data_save_period == 0:
             self.save_data()
+        if self.step_number % self.goal_move_period == 0:
+            self.regenerate_goal()
 
         return mean_score
+
+    def regenerate_goal(self):
+        # pdb.set_trace()
+        self.gen_rand_pos(self.arena.goals)
+        print('new goal pos: {}'.format(self.arena.goals))
 
     def draw_still_on_axes(self):
         '''
@@ -230,11 +249,17 @@ class Simulator():
         self.anim_counter += 1
         return self.moving_bits,
 
-    def run(self, history=False, figure=False, animate=False):
+    def run(self, history=False, figure=False, animate=False, record=False):
         plt.close('all')
         if history:
             retval = []
         self.start_time = time.time()
+
+        if record:
+            plt.rcParams['animation.ffmpeg_path'] = '/usr/local/bin/ffmpeg'
+            Writer = animation.writers['ffmpeg']
+            self.writer = Writer(fps=60, metadata=dict(artist='Me'), extra_args=[
+                '-vcodec', 'h264_nvenc'], bitrate=1800)
         if animate:
             retval = None
             self.fig = plt.figure()
@@ -254,7 +279,10 @@ class Simulator():
                                                  fargs=(self.axes,),
                                                  repeat=False,
                                                  blit=(not self.anim_rot_enabled))
-            plt.show()
+            if record:
+                self.anim.save('some_name.mp4', writer=self.writer)
+            else:
+                plt.show()
         else:
             if figure:
                 self.fig = plt.figure()
@@ -282,13 +310,6 @@ class Simulator():
                 plt.show()
 
         return retval
-
-    def softmax(self, x):
-        '''
-        Compute softmax values for each sets of scores in x.
-        '''
-        e_x = np.exp(x - np.max(x))
-        return e_x / e_x.sum()
 
     def crossover(self, arr):
         '''
@@ -347,9 +368,9 @@ class Simulator():
             # Resurect some of the dead as the children of the reproductors
             self.agents.alive[children] = True
             self.agents.alive_no += children.shape[0]
-            self.gen_rand_pos(self.agents.positions[children])
-            self.agents.lin_dec_mat[children] = self.agents.lin_dec_mat[reproductors].copy()
-            self.mutate(self.agents.lin_dec_mat[children])
+            self.gen_rand_pos(self.agents.positions[children, :])
+            self.agents.lin_dec_mat[children, ...] = self.agents.lin_dec_mat[reproductors, ...].copy()
+            self.mutate(self.agents.lin_dec_mat[children, ...])
             self.scores[children] = self.scr_starting_score
             # print('Reproduced {}'.format(sum(reproductors)))
 
@@ -359,12 +380,22 @@ class Simulator():
             add_agents = np.argwhere(np.logical_not(self.agents.alive))[:self.min_agent_no-self.agents.alive_no]
             self.agents.alive[add_agents] = True
             self.agents.alive_no += add_agents.shape[0]
-            self.gen_rand_pos(self.agents.positions[add_agents])
+            self.gen_rand_pos(self.agents.positions[add_agents, :])
             parents = np.argwhere(self.agents.alive)
-            parents = parents[np.random.randint(0, parents.size[0], add_agents.shape[0])]
-            self.agents.lin_dec_mat[add_agents] = self.agents.lin_dec_mat[parents].copy()
-            self.mutate(self.agents.lin_dec_mat[add_agents])
+            if type(parents) is int:
+                # pdb.set_trace()
+                parents = np.array([parents])
+            if type(add_agents) is int:
+                # pdb.set_trace()
+                add_agents = np.array([add_agents])
+            # if type(add_agents.shape) is int or type(parents.shape) is int:
+                # pdb.set_trace()
+            parents = parents[np.random.randint(0, parents.shape[0], add_agents.shape[0])]
+            self.agents.lin_dec_mat[add_agents, ...] = self.agents.lin_dec_mat[parents, ...].copy()
+            self.mutate(self.agents.lin_dec_mat[add_agents, ...])
             self.scores[add_agents] = self.scr_starting_score
+
+        self.agents.set_decision_matrix()
 
 def enable_xkcd_mode():
     from matplotlib import patheffects
@@ -376,15 +407,17 @@ if __name__ == '__main__':
     # plt.close('all')
     # enable_xkcd_mode()
     print('Starting')
-    max_steps = 1000
+    max_steps = None
+    # max_steps = 500
     min_agent_no = 50
-    max_agent_no = 100
-    test_arena = arena.Arena(size=(300, 300, 300))
+    max_agent_no = 150
+    test_arena = arena.Arena(size=(400, 400, 400))
 
 
     sim = Simulator(target_arena=test_arena,
-                    decision_mode='linear',
+                    # decision_mode='linear',
                     # decision_mode='random',
+                    decision_mode='rnn',
                     max_steps=max_steps,
                     min_agent_no=min_agent_no,
                     max_agent_no=max_agent_no,
@@ -393,8 +426,8 @@ if __name__ == '__main__':
 
     start_time = time.time()
     scores = sim.run(history=True,
-                     figure=True)
-                     # animate=True)
+                     figure=False)
+                     # animate=True, record=False)
 
     # print('{}s total, {}ms p/a'.format((time.time() - start_time), (time.time() - start_time) / max_steps / max_agent_no * 1000))
     # plt.figure()

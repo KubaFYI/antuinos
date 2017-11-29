@@ -38,7 +38,7 @@ class RNN():
 
         self.weights = np.random.random((max_agents_no,
                                          self.hidden_layer_size,
-                                         self.inputs_no * self.context_layer_size * self.outputs_no))
+                                         self.inputs_no + self.context_layer_size + self.outputs_no))
 
         self.context_layer = np.zeros((max_agents_no, self.context_layer_size))
 
@@ -49,10 +49,10 @@ class RNN():
         '''
         Compute the results of the RNN computation
         '''
-        hidden_layer = np.empty((inputs.shape[0], hidden_layer_size))
+        hidden_layer = np.empty((weights.shape[0], hidden_layer_size))
         outputs *= 0
 
-        for idx in prange(inputs.shape[0]):
+        for idx in prange(weights.shape[0]):
             hidden_layer[idx, :] = np.tanh(np.dot(weights[idx, :, idx_input_start:idx_input_stop], inputs[idx, :]) +
                                     np.dot(weights[idx, :, idx_context_start:idx_context_stop], context_layer[idx, :]))
             outputs[idx, :] = np.dot(weights[idx, :, idx_output_start:idx_output_stop].T, hidden_layer[idx, :])

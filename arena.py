@@ -20,7 +20,7 @@ class Arena():
     def __init__(self, size=(100, 100)):
         self.size = size
         self.dim = len(self.size)
-        self.goals = [size]
+        self.goals = np.array([size], dtype=np.float)
         self.directions = np.array(np.concatenate(
             (np.identity(self.dim), -1 * np.identity(self.dim))))
 
