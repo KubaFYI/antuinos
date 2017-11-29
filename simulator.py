@@ -42,10 +42,10 @@ class Simulator():
 
         # Constants used in scoring runs
         self.scr_starting_score = 2
-        self.scr_movement_cost = 0.2
-        self.scr_signal_cost = 0.01
+        self.scr_movement_cost = 0.01
+        self.scr_signal_cost = 0.001
         self.scr_energy_rad = 100
-        self.scr_energy_max_per_step = 0.5
+        self.scr_energy_max_per_step = 0.05
         self.scr_energy_adj = 5
 
         # Evolution constants
@@ -66,6 +66,7 @@ class Simulator():
         # self.anim_azim_dev = 30
         self.anim_azim_rot_dir = 1
         self.writer = None
+        self.bookkeeping = None
 
         np.random.seed(seed)
 
@@ -94,6 +95,8 @@ class Simulator():
 
         with open('{}_{}.pickle'.format(self.data_file, self.step_number), 'wb') as f:
             pickle.dump(self.agents.lin_dec_mat, f)
+        with open('numbers.log'.format(self.data_file, self.step_number), 'wb') as f:
+            pickle.dump(self.bookkeeping, f)
 
     def load_data(self):
         '''
@@ -141,9 +144,10 @@ class Simulator():
         '''
 
         # Action Costs
-        moved = np.logical_and(self.agents.alive, np.sum(self.agents.actions[:, :self.arena.directions.shape[0]]) == 1.)
+        # moved = np.logical_and(self.agents.alive, np.sum(self.agents.actions[:, :self.arena.directions.shape[0]]) == 1.)
         signalled = self.agents.signalled > 0
-        self.scores[moved] -= self.scr_movement_cost
+        self.scores-= self.scr_movement_cost
+        # self.scores[moved] -= self.scr_movement_cost
         self.scores[signalled] -= self.scr_signal_cost
 
         # Make sure we calculate the right distanes given we are on a torus
@@ -185,7 +189,7 @@ class Simulator():
         self.kill_and_spawn()
 
         if self.step_number % self.report_period == 0:
-            print('Step {}\tAlive agents {}\tMean score: {}'.format(self.step_number, self.agents.alive_no, mean_score))
+            print('Step {}\tAlive agents {}\tMean score: {}\tMax score {}'.format(self.step_number, self.agents.alive_no, mean_score, np.max(self.scores[self.agents.alive])))
             self.kill_and_spawn()
         if self.step_number % self.data_save_period == 0:
             self.save_data()
@@ -252,7 +256,7 @@ class Simulator():
     def run(self, history=False, figure=False, animate=False, record=False):
         plt.close('all')
         if history:
-            retval = []
+            self.bookkeeping = []
         self.start_time = time.time()
 
         if record:
@@ -261,7 +265,7 @@ class Simulator():
             self.writer = Writer(fps=60, metadata=dict(artist='Me'), extra_args=[
                 '-vcodec', 'h264_nvenc'], bitrate=1800)
         if animate:
-            retval = None
+            self.bookkeeping = None
             self.fig = plt.figure()
             if self.arena.dim == 2:
                 self.axes = plt.gca()
@@ -294,22 +298,22 @@ class Simulator():
             if self.max_steps is not None:
                 while self.step_number < self.max_steps:
                     if history:
-                        retval.append(self.step())
+                        self.bookkeeping.append([self.agents.alive_no, self.step()])
                     else:
-                        retval = self.step()
+                        self.bookkeeping = self.step()
             else:
                 while True:
                     if history:
-                        retval.append(self.step())
+                        self.bookkeeping.append([self.agents.alive_no, self.step()])
                     else:
-                        retval = self.step()
+                        self.bookkeeping = self.step()
             print('Duration {}s ({}ms per step)'.format(time.time() - start_time, 
                                                         (time.time() - start_time) * 1000 / self.max_steps))
             if figure:
                 sim.draw_still_on_axes()
                 plt.show()
 
-        return retval
+        return self.bookkeeping
 
     def crossover(self, arr):
         '''
@@ -426,8 +430,8 @@ if __name__ == '__main__':
 
     start_time = time.time()
     scores = sim.run(history=True,
-                     figure=False)
-                     # animate=True, record=False)
+                     # figure=False)
+                     animate=True, record=False)
 
     # print('{}s total, {}ms p/a'.format((time.time() - start_time), (time.time() - start_time) / max_steps / max_agent_no * 1000))
     # plt.figure()
