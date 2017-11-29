@@ -1,6 +1,17 @@
 import numpy as np
 import time
 from numba import jit, njit, prange
+# @staticmethod
+@njit
+def softmax(x):
+    '''
+    Compute softmax values for each sets of scores in x.
+    '''
+    e_x = np.empty_like(x)
+    for i in prange(x.shape[0]):
+        e_x[i, :] = np.exp(x[i, :])
+        e_x[i, :] /= np.sum(e_x[i, :])
+    return e_x
 
 class RNN():
     '''
@@ -31,35 +42,32 @@ class RNN():
 
         self.context_layer = np.zeros((max_agents_no, self.context_layer_size))
 
+
     @staticmethod
     @njit(cache=True)
-    def softmax(x):
-        '''
-        Compute softmax values for each sets of scores in x.
-        '''
-        e_x = np.empty_like(x)
-        for i in prange(x.shape[0]):
-            e_x[i, :] = np.exp(x[i, :])
-            e_x[i, :] /= np.sum(e_x[i, :])
-        return e_x
-
-    def compute(self, inputs, outputs):
+    def compute_fast(inputs, outputs, context_layer, weights, hidden_layer_size, idx_input_start, idx_input_stop, idx_context_start, idx_context_stop, idx_output_start, idx_output_stop):
         '''
         Compute the results of the RNN computation
         '''
-        hidden_layer = np.empty((inputs.shape[0], self.hidden_layer_size))
-        outputs[...] *= 0
+        hidden_layer = np.empty((inputs.shape[0], hidden_layer_size))
+        outputs *= 0
 
-        for idx in range(inputs.shape[0]):
-            hidden_layer[idx, :] = np.tanh(np.dot(self.weights[idx, :, self.idx_input_start:self.idx_input_stop], inputs[idx, :]) +
-                                    np.dot(self.weights[idx, :, self.idx_context_start:self.idx_context_stop], self.context_layer[idx, :]))
-            # import pdb; pdb.set_trace()
-            outputs[idx, :] = np.dot(self.weights[idx, :, self.idx_output_start:self.idx_output_stop].T, hidden_layer[idx, :])
+        for idx in prange(inputs.shape[0]):
+            hidden_layer[idx, :] = np.tanh(np.dot(weights[idx, :, idx_input_start:idx_input_stop], inputs[idx, :]) +
+                                    np.dot(weights[idx, :, idx_context_start:idx_context_stop], context_layer[idx, :]))
+            outputs[idx, :] = np.dot(weights[idx, :, idx_output_start:idx_output_stop].T, hidden_layer[idx, :])
 
-        outputs[...] = RNN.softmax(outputs)
-        self.context_layer = hidden_layer.copy()
+        outputs = softmax(outputs)
+        context_layer = hidden_layer.copy()
 
-        return outputs[...]
+        return outputs
+
+    def compute(self, inputs, outputs):
+        self.compute_fast(inputs, outputs, self.context_layer, self.weights,
+                          self.hidden_layer_size, self.idx_input_start,
+                          self.idx_input_stop, self.idx_context_start,
+                          self.idx_context_stop, self.idx_output_start,
+                          self.idx_output_stop)
         
 
 if __name__ == '__main__':
@@ -67,7 +75,9 @@ if __name__ == '__main__':
     w=np.empty((q.shape[0], 7))
     rnn=RNN(250, 7, 7, 10)
     N = 100
-    start_time = time.time()
+    start_time = None
     for i in range(N):
         rnn.compute(q, w)
-    print((time.time() - start_time) / N * 1000)
+        if start_time is None:
+            start_time = time.time()
+    print((time.time() - start_time) / (N-1) * 1000)
