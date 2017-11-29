@@ -47,6 +47,8 @@ class Simulator():
         self.scr_energy_rad = 100
         self.scr_energy_max_per_step = 0.05
         self.scr_energy_adj = 5
+        self.scr_same_action_penalty = 0.1
+        self.scr_same_action_thresh = 5
 
         # Evolution constants
         self.evo_mut_rate = 0.01
@@ -74,7 +76,7 @@ class Simulator():
         self.agents = ant.Ants(self.arena,
                                 self.max_agent_no,
                                 self.decision_mode)
-        self.gen_rand_pos(self.agents.positions)
+        self.gen_rand_pos(self.agents.positions, self.agents.orientations)
 
         # For use with a linear model
         if self.decision_mode == 'linear':
@@ -86,6 +88,10 @@ class Simulator():
 
         self.scores = self.scr_starting_score * np.ones(self.max_agent_no)
         self.agents.reset_alive(np.ones_like(self.scores, dtype=np.bool))
+        self.agents.alive[:np.int((self.max_agent_no-self.min_agent_no)/2)] = False
+        self.agents.alive_no -= int((self.max_agent_no-self.min_agent_no)/2)
+
+        self.past_actions = np.zeros((self.max_agent_no, 2))
 
 
     def save_data(self):
@@ -108,14 +114,18 @@ class Simulator():
                 self.agents.lin_dec_mat = pickle.load(f)
             print('Loaded brain data from {}'.format(filename))
 
-    def gen_rand_pos(self, arr=None):
+    def gen_rand_pos(self, arr_pos=None, arr_orient=None):
         '''
         In place generate a number of random positions in the arena and put it
         in given array.
         '''
-        if arr.shape[0] != 0:
-            arr[...] = np.random.random(arr.shape)
-            arr[...] *= np.array(self.arena.size)
+        if arr_pos.shape[0] != 0:
+            arr_pos[...] = np.random.random(arr_pos.shape)
+            arr_pos[...] *= np.array(self.arena.size)
+            if arr_orient is not None:
+                arr_orient[...] = np.random.randint(0,
+                                                    self.arena.directions.shape[0],
+                                                    arr_orient.shape)
 
     def tile_coords(self, points):
         '''
@@ -149,7 +159,11 @@ class Simulator():
         self.scores-= self.scr_movement_cost
         # self.scores[moved] -= self.scr_movement_cost
         self.scores[signalled] -= self.scr_signal_cost
-
+        action_idxs = np.argwhere(self.agents.actions == 1.)
+        if action_idxs.shape[0] > 0:
+            self.past_actions[action_idxs[:, 1], 0][(self.past_actions[action_idxs[:, 0], 1] == action_idxs[:, 1])] += 1
+            self.scores[self.past_actions[:, 0] > self.scr_same_action_thresh] -= self.scr_same_action_penalty
+            self.past_actions[action_idxs[:, 0], 1] = action_idxs[:, 1]
         # Make sure we calculate the right distanes given we are on a torus
         tiled_goals = self.tile_coords(self.arena.goals)
 
@@ -162,7 +176,6 @@ class Simulator():
 
         taking_energy = np.logical_and(self.agents.alive, smallest_dist <= self.scr_energy_rad)
         self.agents.energy_intake = np.zeros_like(self.agents.energy_intake)
-        # pdb.set_trace()
         self.agents.energy_intake[taking_energy] = ((self.scr_energy_max_per_step * (self.scr_energy_adj + self.arena.GOAL_RADIUS)) /
                                        (np.maximum(smallest_dist[taking_energy], self.arena.GOAL_RADIUS) +
                                         self.scr_energy_adj))
@@ -173,12 +186,19 @@ class Simulator():
         '''
         Execute one step of the simulaton.
         '''
+        # First score in order to initialize the energy intake array
+        self.score()
         self.agents.sense()
         self.agents.decide()
 
         new_pos = np.copy(self.agents.positions)
-        for idx, direction in enumerate(self.arena.directions):
-            self.agents.positions[np.argwhere(self.agents.actions[:, idx])] += self.velocity * direction
+        # Handle 'go forward action'
+        moving_forward = np.argwhere(self.agents.actions[:, self.agents.action_go_straight_idx])
+        self.agents.positions[moving_forward] += self.velocity * self.arena.directions[self.agents.orientations[moving_forward]]
+
+        # Hadle 'turn' actions
+        turning = np.argwhere(self.agents.actions[:, self.agents.action_turn_to_rand_side_idx])
+        self.agents.orientations[turning] = np.random.randint(0, self.arena.directions.shape[0], (turning.shape[0], 1))
 
         # Wrap around edges
         self.agents.positions %= self.arena.size
@@ -199,7 +219,6 @@ class Simulator():
         return mean_score
 
     def regenerate_goal(self):
-        # pdb.set_trace()
         self.gen_rand_pos(self.arena.goals)
         print('new goal pos: {}'.format(self.arena.goals))
 
@@ -279,7 +298,7 @@ class Simulator():
             self.anim = animation.FuncAnimation(self.fig, self.animate,
                                                  init_func=self.setup_anim,
                                                  frames=self.max_steps,
-                                                 interval=20,
+                                                 interval=5,
                                                  fargs=(self.axes,),
                                                  repeat=False,
                                                  blit=(not self.anim_rot_enabled))
@@ -339,7 +358,6 @@ class Simulator():
         if arr.shape[0] != 0:
             genes_mutated = np.random.random(arr.shape) < self.evo_mut_gene_prob
             if genes_mutated.any():
-                # pdb.set_trace()
                 arr[genes_mutated] *= (self.evo_mut_val_var * np.random.standard_normal(genes_mutated.shape)[genes_mutated] + 1)
 
     def kill_and_spawn(self):
@@ -372,11 +390,11 @@ class Simulator():
             # Resurect some of the dead as the children of the reproductors
             self.agents.alive[children] = True
             self.agents.alive_no += children.shape[0]
-            self.gen_rand_pos(self.agents.positions[children, :])
+            self.gen_rand_pos(self.agents.positions[children, :], self.agents.orientations[children])
             self.agents.lin_dec_mat[children, ...] = self.agents.lin_dec_mat[reproductors, ...].copy()
             self.mutate(self.agents.lin_dec_mat[children, ...])
             self.scores[children] = self.scr_starting_score
-            # print('Reproduced {}'.format(sum(reproductors)))
+            print('Reproduced {}'.format(sum(reproductors)))
 
         # Make sure we've got enought agents left
         if self.agents.alive_no < self.min_agent_no:
@@ -384,16 +402,12 @@ class Simulator():
             add_agents = np.argwhere(np.logical_not(self.agents.alive))[:self.min_agent_no-self.agents.alive_no]
             self.agents.alive[add_agents] = True
             self.agents.alive_no += add_agents.shape[0]
-            self.gen_rand_pos(self.agents.positions[add_agents, :])
+            self.gen_rand_pos(self.agents.positions[add_agents, :], self.agents.orientations[add_agents])
             parents = np.argwhere(self.agents.alive)
             if type(parents) is int:
-                # pdb.set_trace()
                 parents = np.array([parents])
             if type(add_agents) is int:
-                # pdb.set_trace()
                 add_agents = np.array([add_agents])
-            # if type(add_agents.shape) is int or type(parents.shape) is int:
-                # pdb.set_trace()
             parents = parents[np.random.randint(0, parents.shape[0], add_agents.shape[0])]
             self.agents.lin_dec_mat[add_agents, ...] = self.agents.lin_dec_mat[parents, ...].copy()
             self.mutate(self.agents.lin_dec_mat[add_agents, ...])
@@ -413,8 +427,8 @@ if __name__ == '__main__':
     print('Starting')
     max_steps = None
     # max_steps = 500
-    min_agent_no = 50
-    max_agent_no = 150
+    min_agent_no = 100
+    max_agent_no = 250
     test_arena = arena.Arena(size=(400, 400, 400))
 
 

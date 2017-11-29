@@ -36,12 +36,16 @@ class Ants():
         self.senses_dim = self.arena.directions.shape[0] + 1
 
         # Move any direction plus send signal plus do nothing
-        self.actions_dim = self.arena.directions.shape[0] + 1 + 1
-        self.action_signal_idx = self.arena.directions.shape[0] + 0
-        self.action_do_nothing_idx = self.arena.directions.shape[0] + 1
+        self.actions_dim = 4
+        self.action_go_straight_idx = 0
+        self.action_turn_to_rand_side_idx = 1
+        self.action_signal_idx = 2
+        self.action_do_nothing_idx = 3
 
         self.positions = np.zeros((self.max_agents_no, self.arena.dim),
                                    dtype=default_dtype)
+        self.orientations = np.zeros(self.max_agents_no,
+                                   dtype=np.int)
         self.senses = np.zeros((self.max_agents_no, self.senses_dim),
                                 dtype=default_dtype)
         self.actions = np.zeros((self.max_agents_no, self.actions_dim),
@@ -100,7 +104,6 @@ class Ants():
         signal_in_range_idx = signal_in_range_idx[signal_in_range_idx[:,0]!=signal_in_range_idx[:,1]]
         if len(signal_in_range_idx) > 0:
             for dir_idx, dire in enumerate(self.arena.directions):
-                # pdb.set_trace()
                 axis = np.argwhere(dire != 0)[0][0]
                 sign = 1 if dire[axis] > 0 else -1
                 in_dir_cone = (sign * (self.positions[signal_in_range_idx[:, 0]][:, axis] - 
@@ -122,7 +125,6 @@ class Ants():
         '''
         Update sensory input.
         '''
-        # pdb.set_trace()
         # self.senses[self.alive] = np.random.randint(0, 1, (self.alive_no, self.senses_dim))
         self.recompute_distances()
         self.get_signal_input()
@@ -175,7 +177,10 @@ class Ants():
         '''
         self.rnn.compute(self.senses[...], self.actions[...])
         normalizers = np.max(self.actions[self.alive, ...], axis=1)
-        self.actions[self.alive, ...] = np.expand_dims(normalizers, 1) == self.actions[self.alive, ...]
+        rand_action = normalizers == 0
+        self.actions[np.argwhere(rand_action)[:, 0], np.random.randint(0, self.actions_dim, size=sum(rand_action))] = 1.
+        deliberate_action = np.argwhere(rand_action == False)[:, 0]
+        self.actions[deliberate_action, ...] = np.expand_dims(normalizers[deliberate_action], 1) == self.actions[deliberate_action, ...]
 
     def set_decision_matrix(self, decision_matrix=None):
         '''
