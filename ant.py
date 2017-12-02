@@ -9,6 +9,7 @@ improvement.
 
 # Imports
 import numpy as np
+from numba import njit, prange
 import pdb
 from rnn import RNN
 
@@ -72,66 +73,81 @@ class Ants():
             self.rnn = RNN(self.max_agents_no, self.senses_dim, self.actions_dim, self.hidden_layer_size)
             self.lin_dec_mat = self.rnn.weights
 
-    def recompute_distances(self):
+    @staticmethod
+    @njit
+    def recompute_distances(distances, positions, dim):
         '''
         Computes distances between each pair of alive agents.
         '''
-        self.distances = np.zeros_like(self.distances)
-        upper_right = np.triu_indices_from(self.distances)
-        lower_left = np.tril_indices_from(self.distances)
-        xs = np.expand_dims(self.positions[:,0], 1)
+        distances[...] = np.zeros_like(distances)
+        xs = np.expand_dims(positions[:,0], 1)
         x_dif = xs - xs.T
-        ys = np.expand_dims(self.positions[:,1], 1)
+        ys = np.expand_dims(positions[:,1], 1)
         y_dif = ys - ys.T
-        if self.arena.dim == 2:
-            self.distances[upper_right[0], upper_right[1]] = np.sqrt(x_dif[upper_right[0], upper_right[1]]**2 +
-                                                  y_dif[upper_right[0], upper_right[1]]**2)
-        elif self.arena.dim == 3:
-            zs = np.expand_dims(self.positions[:,2], 1)
+        if dim == 2:
+            distances[:, :] = np.sqrt(x_dif[:, :]**2 +
+                                                  y_dif[:, :]**2)
+        elif dim == 3:
+            zs = np.expand_dims(positions[:,2], 1)
             z_dif = zs - zs.T
-            self.distances[upper_right[0], upper_right[1]] = np.sqrt(x_dif[upper_right[0], upper_right[1]]**2 +
-                                                  y_dif[upper_right[0], upper_right[1]]**2 +
-                                                  z_dif[upper_right[0], upper_right[1]]**2)
-        self.distances[lower_left[0], lower_left[1]] += (self.distances.T)[lower_left[0], lower_left[1]]
+            distances[:, :] = np.sqrt(x_dif[:, :]**2 +
+                                                  y_dif[:, :]**2 +
+                                                  z_dif[:, :]**2)
+        return distances
 
     def get_signal_input(self):
         '''
         Computes the signal reaching each agent.
         '''
-        # self.signal_dir_mask = np.zeros_like(self.signal_dir_mask)
         self.signals = np.zeros_like(self.signals)
         signal_in_range_idx = np.argwhere(np.logical_and(self.signalled > 0, self.distances <= self.signal_range))
         signal_in_range_idx = signal_in_range_idx[signal_in_range_idx[:,0]!=signal_in_range_idx[:,1]]
         if len(signal_in_range_idx) > 0:
-            for dir_idx, dire in enumerate(self.arena.directions):
-                axis = np.argwhere(dire != 0)[0][0]
+            self.signals = Ants.get_signal_input_compil(signal_in_range_idx, self.positions, self.signals, self.signalled, self.distances, self.arena.dim, self.arena.directions)
+
+    @staticmethod
+    @njit
+    def get_signal_input_compil(signal_in_range_idx, positions, signals, signalled, distances, dimensions, directions):
+            for dir_idx in prange(directions.shape[0]):
+                dire = directions[dir_idx]
+                if dire[0] != 0:
+                    axis = 0
+                elif dire[1] != 0:
+                    axis = 1
+                else:
+                    axis = 2
                 sign = 1 if dire[axis] > 0 else -1
-                in_dir_cone = (sign * (self.positions[signal_in_range_idx[:, 0]][:, axis] - 
-                                       self.positions[signal_in_range_idx[:, 1]][:, axis]) > 
-                               np.abs(self.positions[signal_in_range_idx[:, 1]][:, (axis+1)%self.arena.dim] -
-                                      self.positions[signal_in_range_idx[:, 0]][:, (axis+1)%self.arena.dim]))
-                if self.arena.dim == 3:
-                    in_dir_cone = np.logical_and(in_dir_cone, (sign * (self.positions[signal_in_range_idx[:, 0]][:, axis] - 
-                                       self.positions[signal_in_range_idx[:, 1]][:, axis]) > 
-                               np.abs(self.positions[signal_in_range_idx[:, 1]][:, (axis+2)%self.arena.dim] -
-                                      self.positions[signal_in_range_idx[:, 0]][:, (axis+2)%self.arena.dim])))
+                in_dir_cone = (sign * (positions[signal_in_range_idx[:, 0]][:, axis] - 
+                                       positions[signal_in_range_idx[:, 1]][:, axis]) > 
+                               np.abs(positions[signal_in_range_idx[:, 1]][:, (axis+1)%dimensions] -
+                                      positions[signal_in_range_idx[:, 0]][:, (axis+1)%dimensions]))
+                if dimensions == 3:
+                    in_dir_cone = np.logical_and(in_dir_cone, (sign * (positions[signal_in_range_idx[:, 0]][:, axis] - 
+                                       positions[signal_in_range_idx[:, 1]][:, axis]) > 
+                               np.abs(positions[signal_in_range_idx[:, 1]][:, (axis+2)%dimensions] -
+                                      positions[signal_in_range_idx[:, 0]][:, (axis+2)%dimensions])))
 
                 emit_at_dir_idx = signal_in_range_idx[in_dir_cone]
 
-                for transfer in emit_at_dir_idx:
-                    self.signals[transfer[0], dir_idx] += self.signalled[transfer[1]] / self.distances[transfer[0], transfer[1]]
+                # for transfer in emit_at_dir_idx:
+                for transfer_idx in range(emit_at_dir_idx.shape[0]):
+                    transfer = emit_at_dir_idx[transfer_idx]
+                    signals[transfer[0], dir_idx] += signalled[transfer[1]] / distances[transfer[0], transfer[1]]
+            return signals
 
     def sense(self):
         '''
         Update sensory input.
         '''
-        # self.senses[self.alive] = np.random.randint(0, 1, (self.alive_no, self.senses_dim))
-        self.recompute_distances()
+        self.distances = Ants.recompute_distances(self.distances, self.positions, self.arena.dim)
         self.get_signal_input()
+        signals_ahead = self.signals[:, self.orientations]
+        signals_back = self.signals[:, self.arena.opposite_dirs[self.orientations]]
+        signals_side = np.empty_like(signals_ahead)
+        for side_idx in range((self.arena.dim-1)*2):
+            signals_side += self.signals[:, self.arena.side_dirs[self.orientations, side_idx]]
         self.senses[:, :self.arena.directions.shape[0]] = self.signals
         self.senses[:, -1] = self.energy_intake
-        # print(self.energy_intake)
-        # print(self.senses[self.alive][0,:])
 
     def decide(self):
         '''
@@ -175,7 +191,7 @@ class Ants():
         '''
         Make a decision based on a RRN
         '''
-        self.rnn.compute(self.senses[...], self.actions[...])
+        self.actions[...] = self.rnn.compute(self.senses[...], self.actions[...])
         normalizers = np.max(self.actions[self.alive, ...], axis=1)
         rand_action = normalizers == 0
         self.actions[np.argwhere(rand_action)[:, 0], np.random.randint(0, self.actions_dim, size=sum(rand_action))] = 1.

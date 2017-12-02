@@ -10,6 +10,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.colors import ListedColormap
 from mpl_toolkits.mplot3d import Axes3D
+import pdb
+
 
 class Arena():
     '''
@@ -23,6 +25,16 @@ class Arena():
         self.goals = np.array([size], dtype=np.float)
         self.directions = np.array(np.concatenate(
             (np.identity(self.dim), -1 * np.identity(self.dim))))
+        self.opposite_dirs = np.empty(self.directions.shape[0], dtype=np.int)
+        self.side_dirs = [[] for _ in range(self.directions.shape[0])]
+        # pdb.set_trace()
+        for i, dire1 in enumerate(self.directions):
+            for j, dire2 in enumerate(self.directions):
+                if (dire1 == -1 * dire2).all():
+                    self.opposite_dirs[i] = j
+                elif (dire1 != dire2).any():
+                    self.side_dirs[i].append(j)
+        self.side_dirs = np.array(self.side_dirs, dtype=np.int)
 
         for idx, goal in enumerate(self.goals):
             if goal == (-1, -1):
