@@ -177,11 +177,11 @@ class Simulator():
         # self.scores-= self.scr_movement_cost
         self.scores[moved] -= self.scr_movement_cost
         self.scores[signalled] -= self.scr_signal_cost
-        # action_idxs = np.argwhere(self.agents.actions == 1.)
-        # if action_idxs.shape[0] > 0:
-        #     self.past_actions[action_idxs[:, 1], 0][(self.past_actions[action_idxs[:, 0], 1] == action_idxs[:, 1])] += 1
-        #     self.scores[self.past_actions[:, 0] > self.scr_same_action_thresh] -= self.scr_same_action_penalty
-        #     self.past_actions[action_idxs[:, 0], 1] = action_idxs[:, 1]
+        action_idxs = np.argwhere(self.agents.actions == 1.)
+        if action_idxs.shape[0] > 0:
+            self.past_actions[action_idxs[:, 1], 0][(self.past_actions[action_idxs[:, 0], 1] == action_idxs[:, 1])] += 1
+            self.scores[self.past_actions[:, 0] > self.scr_same_action_thresh] -= self.scr_same_action_penalty
+            self.past_actions[action_idxs[:, 0], 1] = action_idxs[:, 1]
         same_action_penalized = np.zeros_like(moved, dtype=np.bool)
         if not moved_forward.all():
             immobile = np.logical_not(moved_forward)
@@ -252,8 +252,9 @@ class Simulator():
 
     def regenerate_goal(self):
         self.arena.goals = self.gen_rand_pos(self.arena.goals)
-        self.axes.clear()
-        self.setup_anim()
+        if self.axes is not None:
+            self.axes.clear()
+            self.setup_anim()
         print('new goal pos: {}'.format(self.arena.goals))
 
     def draw_still_on_axes(self):
@@ -273,6 +274,8 @@ class Simulator():
                                  self.agents.positions[:, 2],
                                  'bo', color='blue', zorder=20)
 
+        # self.axis.title("This looks silly")
+
     def setup_anim(self):
         '''
         Draws the graphical representation of the arena and the agents on the
@@ -281,7 +284,7 @@ class Simulator():
         self.arena.figurize_arena(self.axes)
 
         if self.arena.dim == 2:
-            self.moving_bits, = self.axes.scatter([], [], marker='o', 
+            self.moving_bits, = self.axes.plot([], [], 'bo', 
                                                     color='blue',
                                                     zorder=20)
         elif self.arena.dim == 3:
@@ -325,9 +328,9 @@ class Simulator():
             elif self.arena.dim == 3:
                 self.axes = p3.Axes3D(self.fig)
                 # self.axes = self.fig.add_subplot(111, projection='3d')
+                self.axes.view_init(dist=8, elev=30, azim=30)
+                self.axes.set_proj_type('persp')
 
-            self.axes.view_init(dist=8, elev=30, azim=30)
-            self.axes.set_proj_type('persp')
             self.regenerate_goal()
             self.anim = animation.FuncAnimation(self.fig, self.animate,
                                                  init_func=self.setup_anim,
@@ -369,7 +372,7 @@ class Simulator():
             if figure:
                 self.draw_still_on_axes()
                 # print(self.bookkeeping)
-                self.axes_vals.plot([x for x in range(len(self.bookkeeping))], self.bookkeeping[:,1])
+                # self.axes_vals.plot([x for x in range(len(self.bookkeeping))], self.bookkeeping[:,1])
                 plt.show()
 
         return self.bookkeeping
@@ -496,8 +499,8 @@ if __name__ == '__main__':
     # plt.close('all')
     # enable_xkcd_mode()
     print('Starting')
-    max_steps = int(3e4)
-    # max_steps = None
+    # max_steps = int(20)
+    max_steps = 1500
     min_agent_no = 100
     max_agent_no = 500
     test_arena = arena.Arena(size=(400, 400, 400))
@@ -513,8 +516,8 @@ if __name__ == '__main__':
     sim.load_data()
 
     start_time = time.time()
-    scores = sim.run(history=False,
-                     # figure=True)
+    scores = sim.run(history=True,
+                     # figure=False)
                      animate=True, record=True)
     # print('{}s total, {}ms p/a'.format((time.time() - start_time), (time.time() - start_time) / max_steps / max_agent_no * 1000))
     # plt.figure()

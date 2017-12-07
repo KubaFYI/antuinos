@@ -37,7 +37,7 @@ class Arena():
         self.side_dirs = np.array(self.side_dirs, dtype=np.int)
 
         for idx, goal in enumerate(self.goals):
-            if goal == (-1, -1):
+            if len(goal) == 2 and (goal == (-1, -1)).all():
                 self.goals[idx] = size
 
         # Constants
